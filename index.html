@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spin Class — Select Workout</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0a;color:#fff;font-family:'Barlow',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px}
+  h1{font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;letter-spacing:.06em;color:#f5c842;margin-bottom:4px}
+  #logo-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:32px}
+  #cb-logo{margin-bottom:10px;filter:drop-shadow(0 0 18px rgba(245,200,66,0.4))}
+  #app-title{font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:900;letter-spacing:.15em;color:#f5c842;line-height:1;margin-bottom:4px}
+  .subtitle{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#444;margin-bottom:40px}
+  .workout-grid{display:flex;flex-direction:column;gap:14px;width:100%;max-width:560px}
+  .workout-card{background:#111;border:1px solid #222;border-radius:12px;padding:20px 24px;cursor:pointer;transition:all .15s;text-decoration:none;display:block}
+  .workout-card:hover{background:#161616;border-color:#f5c842;transform:translateY(-1px)}
+  .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+  .card-name{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:700;letter-spacing:.03em;color:#fff;line-height:1}
+  .card-time{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:600;color:#f5c842;text-align:right;line-height:1}
+  .card-time-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#555;text-align:right;margin-top:2px}
+  .card-segments{display:flex;gap:4px;flex-wrap:wrap}
+  .seg-pip{height:6px;border-radius:3px;flex:1;min-width:8px;max-width:40px}
+  .seg-pip.work{background:#f5c842}
+  .seg-pip.rest{background:#44aaff}
+  .seg-pip.warmup{background:#88aaff}
+  .seg-pip.cooldown{background:#aa88ff}
+  .card-meta{display:flex;gap:16px;margin-top:10px}
+  .meta-item{font-size:11px;color:#555;letter-spacing:.06em;text-transform:uppercase}
+  .meta-item span{color:#aaa;font-weight:600}
+  .add-card{background:none;border:2px dashed #1e1e1e;border-radius:12px;padding:20px 24px;text-align:center;color:#333;font-size:13px;letter-spacing:.1em;text-transform:uppercase;cursor:default;margin-top:4px}
+  .go-btn{display:inline-block;margin-top:14px;background:#f5c842;color:#000;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .workout-card:hover .go-btn{background:#ffd855}
+</style>
+</head>
+<body>
+<div id="logo-wrap">
+  <svg id="cb-logo" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width="90" height="90">
+    <!-- Black outer ring -->
+    <circle cx="60" cy="60" r="58" fill="#000"/>
+    <!-- Yellow ring -->
+    <circle cx="60" cy="60" r="52" fill="#f5c842"/>
+    <!-- Black ring -->
+    <circle cx="60" cy="60" r="44" fill="#000"/>
+    <!-- White circle -->
+    <circle cx="60" cy="60" r="38" fill="#ffffff"/>
+    <!-- cb text -->
+    <text x="50%" y="57%" dominant-baseline="middle" text-anchor="middle"
+      font-family="Barlow Condensed, sans-serif" font-size="38" font-weight="700"
+      fill="#0a0a0a" letter-spacing="1" font-variant="small-caps">cb</text>
+  </svg>
+  <div id="app-title">CYCLEBOSS</div>
+  <div class="subtitle">Select your workout</div>
+</div>
+
+<div class="workout-grid" id="workout-grid"></div>
+
+<script>
+const workouts = [
+  {
+    file: 'spin-class-serious-intervals.html',
+    name: 'Serious Intervals',
+    workout: [
+      {name:'WarmUp',type:'warmup',duration:300,rpm:'60-90',level:'2',ftp:'70'},
+      {name:'WarmUp Work',type:'warmup',duration:30,rpm:'90-100',level:'4',ftp:'95'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'90-100',level:'2',ftp:'70'},
+      {name:'WarmUp Work',type:'work',duration:30,rpm:'90-100',level:'4',ftp:''},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'90-100',level:'2',ftp:'70'},
+      {name:'WarmUp Work',type:'work',duration:30,rpm:'90-100',level:'4',ftp:''},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'90-100',level:'2',ftp:'70'},
+      {name:'Rest',type:'rest',duration:120,rpm:'75-90',level:'2',ftp:'70'},
+      {name:'10 on 10 rest - use timer',type:'work',duration:300,rpm:'120',level:'3',ftp:''},
+      {name:'Pyramid 2 (sit/stand)',type:'work',duration:120,rpm:'80-90',level:'3',ftp:'85'},
+      {name:'Rest',type:'rest',duration:60,rpm:'80-90',level:'2',ftp:'70'},
+      {name:'Pyramid 4 (sit/stand)',type:'work',duration:240,rpm:'80-90',level:'3',ftp:'85'},
+      {name:'Rest',type:'rest',duration:60,rpm:'80-90',level:'2',ftp:'70'},
+      {name:'Pyramid 6 (sit/stand)',type:'work',duration:360,rpm:'80-90',level:'3',ftp:'85'},
+      {name:'Rest',type:'rest',duration:60,rpm:'80-90',level:'2',ftp:'70'},
+      {name:'Pyramid 8 (sit/stand)',type:'work',duration:480,rpm:'80-90',level:'3',ftp:'85'},
+      {name:'Rest',type:'rest',duration:120,rpm:'80-90',level:'2',ftp:'70'},
+      {name:'Pyramid 6 (sit/stand)',type:'work',duration:360,rpm:'85-95',level:'4',ftp:'100'},
+      {name:'Rest',type:'rest',duration:60,rpm:'85-95',level:'2',ftp:'70'},
+      {name:'Pyramid 4 (sit/stand)',type:'work',duration:240,rpm:'85-95',level:'4',ftp:'100'},
+      {name:'Rest',type:'rest',duration:60,rpm:'85-95',level:'2',ftp:'70'},
+      {name:'Pyramid 2 (sit/stand)',type:'work',duration:120,rpm:'85-95',level:'4',ftp:'100'},
+      {name:'Rest',type:'rest',duration:180,rpm:'80-90',level:'2',ftp:'70'},
+      {name:'Z5 Seated',type:'work',duration:20,rpm:'85-95',level:'5',ftp:'115'},
+      {name:'Z5 Stand',type:'work',duration:20,rpm:'80-85',level:'5',ftp:'115'},
+      {name:'Rest',type:'rest',duration:40,rpm:'80',level:'1',ftp:'55'},
+      {name:'Z5 Seated',type:'work',duration:20,rpm:'85-95',level:'5',ftp:'115'},
+      {name:'Z5 Stand',type:'work',duration:20,rpm:'80-85',level:'5',ftp:'115'},
+      {name:'Rest',type:'rest',duration:40,rpm:'80',level:'1',ftp:'55'},
+      {name:'Z5 Seated',type:'work',duration:20,rpm:'85-95',level:'5',ftp:'115'},
+      {name:'Z5 Stand',type:'work',duration:20,rpm:'80-85',level:'5',ftp:'115'},
+      {name:'Rest',type:'rest',duration:40,rpm:'80',level:'1',ftp:'55'},
+      {name:'Cool Down',type:'cooldown',duration:300,rpm:'80-90',level:'1',ftp:'55'},
+    ]
+  },
+  {
+    file: 'spin-class-sugar-kane.html',
+    name: 'Sugar Kane',
+    workout: [
+      {name:'Warm Up',type:'warmup',duration:240,rpm:'90',level:'1',ftp:'55'},
+      {name:'Warm Up',type:'warmup',duration:240,rpm:'90',level:'2',ftp:'70'},
+      {name:'HIIT',type:'work',duration:40,rpm:'80-90',level:'5',ftp:'110'},
+      {name:'HIIT-rest',type:'rest',duration:20,rpm:'75-90',level:'1',ftp:'66'},
+      {name:'HIIT',type:'work',duration:40,rpm:'80-90',level:'5',ftp:'110'},
+      {name:'HIIT-rest',type:'rest',duration:20,rpm:'75-90',level:'1',ftp:'55'},
+      {name:'HIIT',type:'work',duration:40,rpm:'80-90',level:'5',ftp:'110'},
+      {name:'HIIT-rest',type:'rest',duration:20,rpm:'75-90',level:'1',ftp:'55'},
+      {name:'Flat Road',type:'work',duration:180,rpm:'80-90',level:'3',ftp:'80'},
+      {name:'SugarKane Max Effort',type:'work',duration:120,rpm:'80-90',level:'5',ftp:'130'},
+      {name:'SugarKane Rest',type:'rest',duration:120,rpm:'75-90',level:'1',ftp:'55'},
+      {name:'SugarKane Match Distance round 1',type:'work',duration:180,rpm:'80-90',level:'5',ftp:'130'},
+      {name:'SugarKane Rest',type:'rest',duration:120,rpm:'75-90',level:'1',ftp:'55'},
+      {name:'SugarKane Match Time round 2',type:'work',duration:180,rpm:'75-90',level:'5',ftp:'130'},
+      {name:'Bottom of Hill',type:'work',duration:180,rpm:'80-90',level:'3',ftp:'80'},
+      {name:'Add Resistance',type:'work',duration:120,rpm:'80',level:'4',ftp:'90'},
+      {name:'Add Resistance',type:'work',duration:120,rpm:'70',level:'4',ftp:'90'},
+      {name:'Add Resistance',type:'work',duration:120,rpm:'65',level:'4',ftp:'90'},
+      {name:'Rest',type:'rest',duration:120,rpm:'80-90',level:'2',ftp:'70'},
+      {name:'Bottom of Hill',type:'work',duration:120,rpm:'80-90',level:'3',ftp:'80'},
+      {name:'Add Resistance Stand',type:'work',duration:60,rpm:'80',level:'3',ftp:'80'},
+      {name:'Add Resistance Seated',type:'work',duration:60,rpm:'80',level:'4',ftp:'90'},
+      {name:'Add Resistance Stand',type:'work',duration:60,rpm:'80',level:'4',ftp:'90'},
+      {name:'Add Resistance Seated',type:'work',duration:30,rpm:'80',level:'5',ftp:'110'},
+      {name:'Remove Resistance Add Speed',type:'work',duration:60,rpm:'95',level:'4',ftp:'95'},
+      {name:'Cool Down',type:'rest',duration:240,rpm:'80-90',level:'1',ftp:'55'},
+    ]
+  },
+];
+
+function fmt(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+
+function renderCards(){
+  const grid = document.getElementById('workout-grid');
+  grid.innerHTML = workouts.map(w => {
+    const total = w.workout.reduce((a,s)=>a+s.duration,0);
+    const mins = Math.round(total/60);
+    const workSegs = w.workout.filter(s=>s.type==='work').length;
+    const restSegs = w.workout.filter(s=>s.type==='rest').length;
+    const pips = w.workout.map(s=>`<div class="seg-pip ${s.type}" style="flex:${s.duration}" title="${s.name}"></div>`).join('');
+    return `
+      <a class="workout-card" href="${w.file}">
+        <div class="card-top">
+          <div class="card-name">${w.name}</div>
+          <div>
+            <div class="card-time">${mins} min</div>
+            <div class="card-time-label">${fmt(total)}</div>
+          </div>
+        </div>
+        <div class="card-segments">${pips}</div>
+        <div class="card-meta">
+          <div class="meta-item">Intervals <span>${workSegs}</span></div>
+          <div class="meta-item">Rest <span>${restSegs}</span></div>
+          <div class="meta-item">Segments <span>${w.workout.length}</span></div>
+        </div>
+        <div class="go-btn">Start Ride →</div>
+      </a>`;
+  }).join('');
+  grid.innerHTML += `<div class="add-card">+ Duplicate a trainer file and add an entry above to add more workouts</div>`;
+}
+
+renderCards();
+</script>
+
+<script>
+// ============================================================
+// TO ADD A NEW WORKOUT: just add the filename to this list
+// ============================================================
+const WORKOUT_FILES = [
+  'spin-class-serious-intervals.html',
+  'sugar-kane.html',
+  'spin-trainer.html',
+];
+// ============================================================
+
+function fmt(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+
+const LEVEL_COLORS = {'1':'#ffffff','2':'#44aaff','3':'#4caf50','4':'#f5c842','5':'#e74c3c'};
+function levelColor(lvl){ return LEVEL_COLORS[String(parseInt(lvl)||0)]||'#888'; }
+
+async function loadWorkout(file) {
+  try {
+    const resp = await fetch(file);
+    if (!resp.ok) throw new Error('Not found');
+    const html = await resp.text();
+
+    // Extract workout array
+    const match = html.match(/let workout = (\[[\s\S]*?\]);/);
+    if (!match) throw new Error('No workout found');
+    const workout = JSON.parse(match[1]);
+
+    // Extract title from <title> tag
+    const titleMatch = html.match(/<title>(.*?)<\/title>/);
+    const name = titleMatch ? titleMatch[1] : file.replace('.html','').replace(/-/g,' ');
+
+    return { file, name, workout };
+  } catch(e) {
+    console.warn('Could not load', file, e);
+    return null;
+  }
+}
+
+async function renderCards() {
+  const grid = document.getElementById('workout-grid');
+  grid.innerHTML = '<div style="color:#444;font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:20px">Loading workouts...</div>';
+
+  const results = await Promise.all(WORKOUT_FILES.map(loadWorkout));
+  const workouts = results.filter(Boolean);
+
+  grid.innerHTML = workouts.map(w => {
+    const total = w.workout.reduce((a,s)=>a+s.duration,0);
+    const mins = Math.round(total/60);
+    const workSegs = w.workout.filter(s=>s.type==='work').length;
+    const restSegs = w.workout.filter(s=>s.type==='rest').length;
+    const pips = w.workout.map(s=>`<div class="seg-pip" style="background:${levelColor(s.level)};flex:${s.duration};opacity:${s.type==='rest'?'0.4':'1'}" title="${s.name}"></div>`).join('');
+    return `
+      <a class="workout-card" href="${w.file}">
+        <div class="card-top">
+          <div class="card-name">${w.name}</div>
+          <div>
+            <div class="card-time">${mins} min</div>
+            <div class="card-time-label">${fmt(total)}</div>
+          </div>
+        </div>
+        <div class="card-segments">${pips}</div>
+        <div class="card-meta">
+          <div class="meta-item">Intervals <span>${workSegs}</span></div>
+          <div class="meta-item">Rest <span>${restSegs}</span></div>
+          <div class="meta-item">Segments <span>${w.workout.length}</span></div>
+        </div>
+        <div class="go-btn">Start Ride →</div>
+      </a>`;
+  }).join('');
+
+  grid.innerHTML += `<div class="add-card">+ Add filename to WORKOUT_FILES in index.html to add more workouts</div>`;
+}
+
+renderCards();
+</script>
+</body>
+</html>
