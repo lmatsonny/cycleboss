@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spin Class — Select Workout</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0a0a0a;color:#fff;font-family:'Barlow',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 20px}
+  h1{font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;letter-spacing:.06em;color:#f5c842;margin-bottom:4px}
+  .subtitle{font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#444;margin-bottom:40px}
+  .workout-grid{display:flex;flex-direction:column;gap:14px;width:100%;max-width:560px}
+  .workout-card{background:#111;border:1px solid #222;border-radius:12px;padding:20px 24px;cursor:pointer;transition:all .15s;text-decoration:none;display:block}
+  .workout-card:hover{background:#161616;border-color:#f5c842;transform:translateY(-1px)}
+  .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+  .card-name{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:700;letter-spacing:.03em;color:#fff;line-height:1}
+  .card-time{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:600;color:#f5c842;text-align:right;line-height:1}
+  .card-time-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#555;text-align:right;margin-top:2px}
+  .card-segments{display:flex;gap:4px;flex-wrap:wrap}
+  .seg-pip{height:6px;border-radius:3px;flex:1;min-width:8px;max-width:40px}
+  .seg-pip.work{background:#f5c842}
+  .seg-pip.rest{background:#44aaff}
+  .seg-pip.warmup{background:#88aaff}
+  .seg-pip.cooldown{background:#aa88ff}
+  .card-meta{display:flex;gap:16px;margin-top:10px}
+  .meta-item{font-size:11px;color:#555;letter-spacing:.06em;text-transform:uppercase}
+  .meta-item span{color:#aaa;font-weight:600}
+  .add-card{background:none;border:2px dashed #1e1e1e;border-radius:12px;padding:20px 24px;text-align:center;color:#333;font-size:13px;letter-spacing:.1em;text-transform:uppercase;cursor:default;margin-top:4px}
+  .go-btn{display:inline-block;margin-top:14px;background:#f5c842;color:#000;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .workout-card:hover .go-btn{background:#ffd855}
+</style>
+</head>
+<body>
+<h1>SPIN CLASS</h1>
+<div class="subtitle">Select your workout</div>
+
+<div class="workout-grid" id="workout-grid"></div>
+
+<script>
+const workouts = [
+  {
+    file: 'spin-class - serious intervals.html',
+    name: 'Serious Intervals',
+    workout: [
+      {name:'Warm Up',type:'warmup',duration:180,rpm:'60-70',level:'3'},
+      {name:'Steady State',type:'work',duration:120,rpm:'80',level:'6'},
+      {name:'Recovery',type:'rest',duration:60,rpm:'60',level:'3'},
+      {name:'Build Climb',type:'work',duration:120,rpm:'75',level:'8'},
+      {name:'Recovery',type:'rest',duration:60,rpm:'60',level:'3'},
+      {name:'Sprint Interval',type:'work',duration:30,rpm:'100+',level:'5'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'60',level:'3'},
+      {name:'Sprint Interval',type:'work',duration:30,rpm:'100+',level:'5'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'60',level:'3'},
+      {name:'Sprint Interval',type:'work',duration:30,rpm:'100+',level:'5'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'60',level:'3'},
+      {name:'Seated Climb',type:'work',duration:180,rpm:'70',level:'10'},
+      {name:'Recovery',type:'rest',duration:90,rpm:'60',level:'3'},
+      {name:'Cool Down',type:'cooldown',duration:180,rpm:'55-60',level:'2'},
+    ]
+  },
+  {
+    file: 'spin-class - sugar kane.html',
+    name: 'Sugar Kane',
+    workout: [
+      {name:'Warm Up',type:'warmup',duration:180,rpm:'60-70',level:'3'},
+      {name:'Steady State',type:'work',duration:120,rpm:'80',level:'6'},
+      {name:'Recovery',type:'rest',duration:60,rpm:'60',level:'3'},
+      {name:'Build Climb',type:'work',duration:120,rpm:'75',level:'8'},
+      {name:'Recovery',type:'rest',duration:60,rpm:'60',level:'3'},
+      {name:'Sprint Interval',type:'work',duration:30,rpm:'100+',level:'5'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'60',level:'3'},
+      {name:'Sprint Interval',type:'work',duration:30,rpm:'100+',level:'5'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'60',level:'3'},
+      {name:'Sprint Interval',type:'work',duration:30,rpm:'100+',level:'5'},
+      {name:'Active Rest',type:'rest',duration:30,rpm:'60',level:'3'},
+      {name:'Seated Climb',type:'work',duration:180,rpm:'70',level:'10'},
+      {name:'Recovery',type:'rest',duration:90,rpm:'60',level:'3'},
+      {name:'Cool Down',type:'cooldown',duration:180,rpm:'55-60',level:'2'},
+    ]
+  },
+  // To add more workouts, copy one of the blocks above (from { to },) and change the file and name
+];
+
+function fmt(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+
+function renderCards(){
+  const grid = document.getElementById('workout-grid');
+  grid.innerHTML = workouts.map(w => {
+    const total = w.workout.reduce((a,s)=>a+s.duration,0);
+    const mins = Math.round(total/60);
+    const workSegs = w.workout.filter(s=>s.type==='work').length;
+    const restSegs = w.workout.filter(s=>s.type==='rest').length;
+    const pips = w.workout.map(s=>`<div class="seg-pip ${s.type}" style="flex:${s.duration}" title="${s.name}"></div>`).join('');
+    return `
+      <a class="workout-card" href="${w.file}">
+        <div class="card-top">
+          <div class="card-name">${w.name}</div>
+          <div>
+            <div class="card-time">${mins} min</div>
+            <div class="card-time-label">${fmt(total)}</div>
+          </div>
+        </div>
+        <div class="card-segments">${pips}</div>
+        <div class="card-meta">
+          <div class="meta-item">Intervals <span>${workSegs}</span></div>
+          <div class="meta-item">Rest <span>${restSegs}</span></div>
+          <div class="meta-item">Segments <span>${w.workout.length}</span></div>
+        </div>
+        <div class="go-btn">Start Ride →</div>
+      </a>`;
+  }).join('');
+  grid.innerHTML += `<div class="add-card">+ Duplicate a trainer file and add an entry above to add more workouts</div>`;
+}
+
+renderCards();
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/cycleboss/sw.js').then(reg => {
+      console.log('SW registered');
+    }).catch(err => console.log('SW error:', err));
+  });
+}
+</script>
+</body>
+</html>
