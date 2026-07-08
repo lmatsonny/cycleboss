@@ -1,40 +1,29 @@
+// cYcleBOSS offline service worker
+// Caches every page (and the Google Fonts it uses) the first time it's visited,
+// then serves from cache instantly — with a background refresh when online.
 const CACHE = 'cycleboss-v1';
-const BASE = '/cycleboss';
-const PRECACHE = [
-  BASE + '/',
-  BASE + '/index.html',
-  BASE + '/spin-class-serious-intervals.html',
-  BASE + '/spin-class-sugar-kane.html',
-  BASE + '/spin-trainer.html',
-  BASE + '/manifest.json',
-  BASE + '/icon-192.png',
-  BASE + '/icon-512.png',
-];
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting())
-  );
-});
-
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
-});
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.match(/\.(mp4|webm|mov)$/i)) {
-    e.respondWith(fetch(e.request));
-    return;
-  }
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  // Never intercept the workout videos picked from the phone (blob: URLs)
+  if (req.url.startsWith('blob:')) return;
+
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).then(resp => {
-      const clone = resp.clone();
-      caches.open(CACHE).then(c => c.put(e.request, clone));
-      return resp;
-    }).catch(() => caches.match(BASE + '/index.html')))
+    caches.match(req).then(cached => {
+      const network = fetch(req).then(resp => {
+        // Cache successful responses, including opaque ones (Google Fonts)
+        if (resp && (resp.ok || resp.type === 'opaque')) {
+          const copy = resp.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return resp;
+      }).catch(() => cached);
+      // Serve cached copy immediately if we have one; refresh happens in background
+      return cached || network;
+    })
   );
 });
