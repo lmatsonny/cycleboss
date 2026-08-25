@@ -29,6 +29,7 @@
   .card-meta{display:flex;gap:16px;margin-top:10px}
   .meta-item{font-size:11px;color:#555;letter-spacing:.06em;text-transform:uppercase}
   .meta-item span{color:#aaa;font-weight:600}
+  .meta-item.by span{color:#00cfff}
   .add-card{background:none;border:2px dashed #1e1e1e;border-radius:12px;padding:20px 24px;text-align:center;color:#333;font-size:13px;letter-spacing:.1em;text-transform:uppercase;cursor:default;margin-top:4px}
   .go-btn{display:inline-block;margin-top:14px;background:#FFFA8A;color:#000;padding:8px 20px;border-radius:6px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
   .workout-card:hover .go-btn{background:#FFFA8A}
@@ -106,6 +107,8 @@ function fmt(s){return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60
 const LEVEL_COLORS = {'1':'#ffffff','2':'#00cfff','3':'#39ff14','4':'#FFFA8A','5':'#ff0033'};
 function levelColor(lvl){ return LEVEL_COLORS[String(parseInt(lvl)||0)]||'#888'; }
 
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
 async function loadWorkout(file) {
   try {
     const resp = await fetch(file);
@@ -121,7 +124,11 @@ async function loadWorkout(file) {
     const titleMatch = html.match(/<title>(.*?)<\/title>/);
     const name = titleMatch ? titleMatch[1] : file.replace('.html','').replace(/-/g,' ');
 
-    return { file, name, workout };
+    // Extract uploader from <meta name="author"> (absent on older workouts)
+    const authorMatch = html.match(/<meta\s+name=["']author["']\s+content=["']([^"']*)["']/i);
+    const author = authorMatch && authorMatch[1].trim() ? authorMatch[1].trim() : null;
+
+    return { file, name, workout, author };
   } catch(e) {
     console.warn('Could not load', file, e);
     return null;
@@ -155,6 +162,7 @@ async function renderCards() {
           <div class="meta-item">Intervals <span>${workSegs}</span></div>
           <div class="meta-item">Rest <span>${restSegs}</span></div>
           <div class="meta-item">Segments <span>${w.workout.length}</span></div>
+          ${w.author ? `<div class="meta-item by">By <span>${esc(w.author)}</span></div>` : ''}
         </div>
         <div class="go-btn">Start Ride →</div>
       </a>`;
