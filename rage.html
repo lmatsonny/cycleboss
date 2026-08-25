@@ -1323,6 +1323,11 @@ if('serviceWorker' in navigator){
     position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:#fff;
     transform:translate(-50%,-50%);left:0;box-shadow:0 0 6px rgba(0,0,0,.6);pointer-events:none
   }
+  #vp-play{
+    background:none;border:1px solid rgba(255,255,255,.3);border-radius:6px;
+    color:#fff;font-size:15px;line-height:1;padding:7px 11px;cursor:pointer;flex-shrink:0
+  }
+  #vp-play:hover{border-color:#00cfff;color:#00cfff}
   #vp-time{font-size:17px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
   #yt-player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     width:177.78vh;height:100vh;min-width:100%;min-height:100%;z-index:2;pointer-events:none}
@@ -1464,11 +1469,13 @@ if('serviceWorker' in navigator){
   const scrub = document.createElement('div');
   scrub.id = 'vp-scrub';
   scrub.innerHTML = `
+    <button id="vp-play" title="Play / pause video">▶</button>
     <div id="vp-track"><div id="vp-fill"></div><div id="vp-knob"></div></div>
     <div id="vp-time">0:00 / 0:00</div>
   `;
   road.appendChild(scrub);
 
+  const playBtn = scrub.querySelector('#vp-play');
   const track = scrub.querySelector('#vp-track');
   const fill  = scrub.querySelector('#vp-fill');
   const knob  = scrub.querySelector('#vp-knob');
@@ -1528,7 +1535,24 @@ if('serviceWorker' in navigator){
     if (dur) vSeek(posFromEvent(e) * dur);
   });
 
+  function vIsPlaying(){
+    if (usingYT) return !!(ytPlayer && ytReady && ytPlayer.getPlayerState() === 1);
+    const v = document.getElementById('bg-video');
+    return !!(v && !v.paused && !v.ended);
+  }
+
+  playBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    window.toggleVideoPause();          // same action as the sidebar VIDEO button
+    setTimeout(syncPlayBtn, 120);
+  });
+
+  function syncPlayBtn(){
+    playBtn.textContent = vIsPlaying() ? '\u23f8' : '\u25b6';
+  }
+
   setInterval(() => {
+    syncPlayBtn();
     const dur = vDuration();
     if (!dur) { scrub.classList.remove('show'); return; }
     scrub.classList.add('show');
