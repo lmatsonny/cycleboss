@@ -1260,10 +1260,13 @@ if('serviceWorker' in navigator){
 </script>
 <!-- ============================================================
      VIDEO PICKER + YOUTUBE SUPPORT
-     Paste this whole block into rage.html directly BEFORE the
-     final <script> block (the one that registers the service
-     worker), near the bottom of the file.
-     Nothing else in the file needs to change.
+     REPLACING AN EARLIER VERSION? In rage.html, delete everything
+     from the previous "VIDEO PICKER" comment down to the last
+     </script> before </body>, then paste this in its place.
+
+     FIRST TIME? Paste this whole block near the bottom of
+     rage.html, just before </body>. Make sure the script block
+     above it ends with its own </script> tag.
      ============================================================ -->
 <style>
   #video-picker-btn{
@@ -1272,6 +1275,8 @@ if('serviceWorker' in navigator){
     text-transform:uppercase;cursor:pointer;font-family:'Barlow',sans-serif;z-index:6
   }
   #video-picker-btn:hover{color:#fff;border-color:#555}
+  #video-picker-btn{opacity:0;transition:opacity .25s}
+  #road-view:hover #video-picker-btn{opacity:1}
   #video-picker{
     display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.9);
     flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center
@@ -1298,6 +1303,27 @@ if('serviceWorker' in navigator){
   #vp-note{font-size:11px;color:#666;letter-spacing:.04em;max-width:420px;line-height:1.6}
   #vp-remember{display:flex;align-items:center;gap:7px;font-size:11px;color:#888;
     letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;cursor:pointer}
+  #vp-scrub{
+    position:absolute;bottom:0;left:0;right:0;z-index:7;padding:14px 18px 10px;
+    background:linear-gradient(to top,rgba(0,0,0,.75),transparent);
+    display:none;align-items:center;gap:12px;font-family:'Barlow Condensed',sans-serif;
+    opacity:0;transition:opacity .25s;pointer-events:none
+  }
+  #vp-scrub.show{display:flex}
+  /* only visible while the mouse is over the video area */
+  #road-view:hover #vp-scrub.show,
+  #vp-scrub.show.holding{opacity:1;pointer-events:auto}
+  #vp-track{
+    flex:1;height:6px;background:rgba(255,255,255,.22);border-radius:3px;
+    position:relative;cursor:pointer
+  }
+  #vp-track:hover{height:9px}
+  #vp-fill{position:absolute;left:0;top:0;bottom:0;background:#00cfff;border-radius:3px;width:0}
+  #vp-knob{
+    position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:#fff;
+    transform:translate(-50%,-50%);left:0;box-shadow:0 0 6px rgba(0,0,0,.6);pointer-events:none
+  }
+  #vp-time{font-size:17px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
   #yt-player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     width:177.78vh;height:100vh;min-width:100%;min-height:100%;z-index:2;pointer-events:none}
 </style>
@@ -1434,6 +1460,83 @@ if('serviceWorker' in navigator){
     if (holder) holder.style.display = 'none';
   }
 
+  // ---- scrub bar ----
+  const scrub = document.createElement('div');
+  scrub.id = 'vp-scrub';
+  scrub.innerHTML = `
+    <div id="vp-track"><div id="vp-fill"></div><div id="vp-knob"></div></div>
+    <div id="vp-time">0:00 / 0:00</div>
+  `;
+  road.appendChild(scrub);
+
+  const track = scrub.querySelector('#vp-track');
+  const fill  = scrub.querySelector('#vp-fill');
+  const knob  = scrub.querySelector('#vp-knob');
+  const tlabel= scrub.querySelector('#vp-time');
+  let dragging = false;
+
+  // one set of accessors covering both players
+  function vDuration(){
+    if (usingYT) return (ytPlayer && ytReady) ? (ytPlayer.getDuration() || 0) : 0;
+    const v = document.getElementById('bg-video');
+    return (v && isFinite(v.duration)) ? v.duration : 0;
+  }
+  function vCurrent(){
+    if (usingYT) return (ytPlayer && ytReady) ? (ytPlayer.getCurrentTime() || 0) : 0;
+    const v = document.getElementById('bg-video');
+    return v ? v.currentTime : 0;
+  }
+  function vSeek(t){
+    if (usingYT) { if (ytPlayer && ytReady) ytPlayer.seekTo(t, true); return; }
+    const v = document.getElementById('bg-video');
+    if (v && isFinite(v.duration)) v.currentTime = Math.max(0, Math.min(v.duration, t));
+  }
+  function clock(s){
+    s = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+    return (h ? h + ':' + String(m).padStart(2,'0') : String(m)) + ':' + String(ss).padStart(2,'0');
+  }
+
+  function posFromEvent(e){
+    const r = track.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    return Math.max(0, Math.min(1, x / r.width));
+  }
+  function paint(pct, cur, dur){
+    fill.style.width = (pct*100) + '%';
+    knob.style.left  = (pct*100) + '%';
+    tlabel.textContent = clock(cur) + ' / ' + clock(dur);
+  }
+
+  track.addEventListener('pointerdown', e => {
+    dragging = true;
+    scrub.classList.add('holding');
+    track.setPointerCapture(e.pointerId);
+    const p = posFromEvent(e);
+    paint(p, p * vDuration(), vDuration());
+  });
+  track.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const p = posFromEvent(e);
+    paint(p, p * vDuration(), vDuration());
+  });
+  track.addEventListener('pointerup', e => {
+    if (!dragging) return;
+    dragging = false;
+    scrub.classList.remove('holding');
+    const dur = vDuration();
+    if (dur) vSeek(posFromEvent(e) * dur);
+  });
+
+  setInterval(() => {
+    const dur = vDuration();
+    if (!dur) { scrub.classList.remove('show'); return; }
+    scrub.classList.add('show');
+    if (dragging) return;
+    const cur = vCurrent();
+    paint(cur / dur, cur, dur);
+  }, 400);
+
   // ---- hook into the existing controls ----
   const _togglePlay = window.togglePlay;
   window.togglePlay = function(){
@@ -1475,5 +1578,3 @@ if('serviceWorker' in navigator){
   if (saved && saved.type === 'yt' && saved.id) loadYouTube(saved.id);
 })();
 </script>
-</body>
-</html>
