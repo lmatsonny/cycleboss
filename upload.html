@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CycleBoss — Upload Workout</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --z1: #ffffff;
+    --z2: #00cfff;
+    --z3: #39ff14;
+    --z4: #FFFA8A;
+    --z5: #ff0033;
+    --bg: #000000;
+    --panel: #16161f;
+    --panel2: #1e1e2a;
+    --text: #f0f0f5;
+    --muted: #8a8a9a;
+    --accent: #00cfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Barlow', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100dvh;
+    padding: 20px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  .brand { text-align: center; margin-bottom: 28px; }
+  #logo {
+    display: block;
+    margin: 0 auto 10px;
+    width: 100%;
+    max-width: 240px;
+    height: auto;
+  }
+  .tagline {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #ffffff;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid #2a2a38;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  label { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text); margin-bottom: 6px; }
+  input, select {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid #33334a;
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 1rem;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 140px; }
+
+  /* Interval grid */
+  .interval {
+    display: grid;
+    grid-template-columns: 14px 2fr 70px 70px 90px 70px 70px 36px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .interval input, .interval select { padding: 8px; font-size: 0.9rem; }
+  .interval .zswatch { width: 14px; height: 30px; border-radius: 4px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .section-head label { margin-bottom: 6px; }
+  .bar-total {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.05rem; font-weight: 700; letter-spacing: 0.06em;
+    color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .interval .del {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.1rem;
+  }
+  .interval .del:hover { color: var(--z5); }
+  .headers {
+    display: grid;
+    grid-template-columns: 14px 2fr 70px 70px 90px 70px 70px 36px;
+    gap: 8px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  @media (max-width: 640px) {
+    .interval, .headers { grid-template-columns: 14px 1fr 56px 56px 74px; }
+    .headers div:nth-child(n+6), .interval > *:nth-child(n+6) { display: none; }
+    .interval .del { display: block !important; grid-column: 5; }
+  }
+
+  textarea {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid #33334a;
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    line-height: 1.5;
+    resize: vertical;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .paste-row { display: flex; gap: 8px; margin-top: 8px; }
+  .paste-row button { flex: 1; margin-top: 0; }
+  button.ghost.small { padding: 8px 12px; font-size: 0.85rem; }
+  .paste-row button.ghost.small {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    color: #001018;
+    font-variant: small-caps;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    font-size: 0.95rem;
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+  .paste-row button.ghost.small:hover { background: #33dcff; border-color: #33dcff; color: #001018; }
+  .paste-help { font-size: 0.75rem; color: var(--muted); margin: 8px 0 20px; }
+  .paste-help b { color: #b8b8c8; font-weight: 600; }
+
+  .action-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .go-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .go-link:hover { text-decoration: underline; }
+
+  button.primary {
+    background: var(--accent);
+    color: #001018;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+  }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.ghost {
+    background: none;
+    border: 1px dashed #44445c;
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+  }
+  button.ghost:hover { color: var(--text); border-color: var(--accent); }
+
+  /* Preview */
+  .preview-bar { display: flex; height: 34px; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+  .preview-bar div { min-width: 2px; }
+
+  .msg { padding: 12px; border-radius: 8px; margin-top: 12px; font-size: 0.9rem; display: none; }
+  .msg.ok { display: block; background: rgba(57,255,20,0.08); border: 1px solid var(--z3); color: var(--z3); }
+  .msg.err { display: block; background: rgba(255,0,51,0.08); border: 1px solid var(--z5); color: var(--z5); }
+
+  .signin { text-align: center; padding: 48px 20px; }
+  .signin p { color: var(--muted); margin-bottom: 20px; }
+  .userbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 0.85rem; color: var(--muted); }
+  .userbar img { width: 28px; height: 28px; border-radius: 50%; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <img id="logo" src="Logo.png" alt="CycleBoss">
+    <div class="tagline">Build your workout</div>
+  </div>
+
+  <!-- SIGN IN -->
+  <div id="signin" class="card signin">
+    <p>Enter the upload password to continue.</p>
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password"
+           style="max-width:280px;margin:0 auto 14px;text-align:center"
+           onkeydown="if(event.key==='Enter')signIn()">
+    <div><button class="primary" id="pwBtn" onclick="signIn()">Continue</button></div>
+    <div class="msg" id="pwMsg"></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <div class="userbar">
+      <span>Signed in</span>
+      <button class="ghost small" style="width:auto;margin:0 0 0 auto;padding:4px 12px" onclick="signOut()">Sign out</button>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="wname">Workout name</label>
+          <input id="wname" placeholder="e.g. tuesday-burner" oninput="render()">
+        </div>
+        <div>
+          <label for="vfile">Video filename (optional)</label>
+          <input id="vfile" placeholder="e.g. GH010042.mp4">
+        </div>
+        <div>
+          <label for="author">Your name</label>
+          <input id="author" placeholder="Your name">
+        </div>
+      </div>
+
+      <label for="paste">Quick entry — paste your workout</label>
+      <textarea id="paste" rows="5" placeholder="5:00 white&#10;5:00 blue&#10;:30 red&#10;:30 green&#10;&#10;or:  6x :30 red / :30 green"></textarea>
+      <div class="paste-row">
+        <button class="ghost small" onclick="convertPaste(false)">Convert to intervals</button>
+        <button class="ghost small" onclick="convertPaste(true)">Add to existing</button>
+      </div>
+      <div class="paste-help">Colors: white, blue, green, yellow, red — or z1–z5. Add <b>90rpm</b> or <b>85%</b> to any line.</div>
+
+      <div class="section-head">
+        <label>Intervals</label>
+        <span class="bar-total" id="ptotal"></span>
+      </div>
+      <div class="preview-bar" id="pbar"></div>
+      <div class="headers">
+        <div></div><div>Name</div><div>Min</div><div>Sec</div><div>Zone</div><div>RPM</div><div>FTP%</div><div></div>
+      </div>
+      <div id="intervals"></div>
+      <button class="ghost" onclick="addInterval()">+ Add interval</button>
+    </div>
+
+    <div class="action-row">
+      <button class="primary" id="uploadBtn" onclick="upload()">UPLOAD WORKOUT</button>
+      <a class="go-link" href="https://lmatsonny.github.io/cycleboss">Go to workouts →</a>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<script>
+const FN = "https://cycleboss.netlify.app/.netlify/functions";
+const ZONE_COLORS = { 1:"#ffffff", 2:"#00cfff", 3:"#39ff14", 4:"#FFFA8A", 5:"#ff0033" };
+function colorFor(zone, ftp) {
+  if (ftp >= 120) return "#ff1a1a";
+  if (ftp === 90) return "#aadc45";
+  if (ftp === 80) return "#00c9a0";
+  return ZONE_COLORS[zone] || "#ffffff";
+}
+
+let pw = sessionStorage.getItem("cb_pw");
+
+// ---- Auth ----
+async function signIn() {
+  const input = document.getElementById("pw");
+  const btn = document.getElementById("pwBtn");
+  const m = document.getElementById("pwMsg");
+  const value = input.value;
+  if (!value) { m.className = "msg err"; m.textContent = "Enter the password."; return; }
+  btn.disabled = true; btn.textContent = "Checking\u2026";
+  try {
+    const r = await fetch(FN + "/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: value })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Wrong password");
+    pw = value;
+    sessionStorage.setItem("cb_pw", pw);
+    showApp();
+  } catch (e) {
+    m.className = "msg err";
+    m.textContent = e.message;
+    input.value = "";
+  } finally {
+    btn.disabled = false; btn.textContent = "Continue";
+  }
+}
+
+function signOut() {
+  sessionStorage.removeItem("cb_pw");
+  location.reload();
+}
+
+function showApp() {
+  document.getElementById("signin").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  if (!document.querySelector(".interval")) { addInterval(); addInterval(); }
+}
+
+// ---- Quick entry parser ----
+const COLOR_ZONE = {
+  white:1, w:1, blue:2, b:2, green:3, g:3, yellow:4, y:4, red:5, r:5
+};
+const ZONE_NAME = { 1:"White", 2:"Blue", 3:"Green", 4:"Yellow", 5:"Red" };
+const ZONE_FTP  = { 1:55, 2:70, 3:85, 4:100, 5:106 };
+const DEFAULT_RPM = "85-95";
+
+// Turn one segment of text ("5:00 white 90rpm 85%") into an interval, or null.
+function parseSegment(text, isFirst) {
+  const s = text.trim();
+  if (!s) return null;
+
+  // time: 5:00, :30, 1:05, or "5 min" / "30s"
+  let seconds = null;
+  let m = s.match(/(\d+)?\s*:\s*(\d{1,2})/);
+  if (m) seconds = (parseInt(m[1] || 0)) * 60 + parseInt(m[2]);
+  if (seconds === null) {
+    m = s.match(/(\d+(?:\.\d+)?)\s*(?:min|m)\b/i);
+    if (m) seconds = Math.round(parseFloat(m[1]) * 60);
+  }
+  if (seconds === null) {
+    m = s.match(/(\d+)\s*(?:sec|s)\b/i);
+    if (m) seconds = parseInt(m[1]);
+  }
+  if (seconds === null || seconds <= 0) return null;
+
+  // zone: colour word or z3 / zone 3
+  let zone = null;
+  m = s.match(/\bz(?:one)?\s*([1-5])\b/i);
+  if (m) zone = parseInt(m[1]);
+  if (zone === null) {
+    for (const word of s.toLowerCase().match(/[a-z]+/g) || []) {
+      if (COLOR_ZONE[word] != null) { zone = COLOR_ZONE[word]; break; }
+    }
+  }
+  if (zone === null) zone = 2;
+
+  const rpmM = s.match(/(\d{2,3}\s*-\s*\d{2,3}|\d{2,3})\s*rpm/i);
+  const ftpM = s.match(/(\d{2,3})\s*%/);
+
+  // a custom name in quotes, otherwise the zone's colour
+  const nameM = s.match(/["“](.+?)["”]/);
+  let name = nameM ? nameM[1] : ZONE_NAME[zone];
+
+  return {
+    name,
+    min: Math.floor(seconds / 60),
+    sec: seconds % 60,
+    zone,
+    rpm: rpmM ? rpmM[1].replace(/\s/g, "") : DEFAULT_RPM,
+    ftp: ftpM ? parseInt(ftpM[1]) : ZONE_FTP[zone]
+  };
+}
+
+function parsePaste(text) {
+  const out = [];
+  const lines = text.split("\n");
+  lines.forEach((line, li) => {
+    let l = line.trim();
+    if (!l || l.startsWith("#")) return;
+
+    // repeat form: "6x :30 red / :30 green"  or  "6 x ..."
+    let reps = 1;
+    const rm = l.match(/^(\d+)\s*x\s*(.+)$/i);
+    if (rm) { reps = parseInt(rm[1]); l = rm[2]; }
+
+    // one line may hold several segments separated by / or ,
+    const parts = l.split(/[\/,]/).map(p => p.trim()).filter(Boolean);
+    const block = parts.map((p, pi) => parseSegment(p, li === 0 && pi === 0)).filter(Boolean);
+    for (let i = 0; i < reps; i++) out.push(...block.map(o => ({ ...o })));
+  });
+  return out;
+}
+
+function convertPaste(append) {
+  const box = document.getElementById("paste");
+  const parsed = parsePaste(box.value);
+  if (!parsed.length) {
+    return showErr("Couldn't read any intervals from that. Each line needs a time and a colour, e.g. \"5:00 blue\".");
+  }
+  if (!append) document.getElementById("intervals").innerHTML = "";
+  parsed.forEach(addInterval);
+  document.getElementById("msg").className = "msg";
+  box.value = "";
+  render();
+}
+
+// ---- Intervals ----
+function addInterval(data) {
+  const d = data || { name:"", min:"", sec:0, zone:2, rpm:DEFAULT_RPM, ftp:ZONE_FTP[2] };
+  const div = document.createElement("div");
+  div.className = "interval";
+  div.innerHTML = `
+    <div class="zswatch"></div>
+    <input class="i-name" placeholder="Interval name" value="${d.name}">
+    <input class="i-min" type="number" min="0" value="${d.min}">
+    <input class="i-sec" type="number" min="0" max="59" value="${d.sec}">
+    <select class="i-zone">
+      ${[1,2,3,4,5].map(z=>`<option value="${z}" ${z==d.zone?"selected":""}>Z${z}</option>`).join("")}
+    </select>
+    <input class="i-rpm" value="${d.rpm}">
+    <input class="i-ftp" type="number" min="0" value="${d.ftp}">
+    <button class="del" title="Remove" onclick="this.parentElement.remove(); render()">✕</button>`;
+  // changing the zone re-applies that zone's name and FTP
+  div.querySelector(".i-zone").addEventListener("change", e => {
+    const z = parseInt(e.target.value);
+    const nameEl = div.querySelector(".i-name");
+    if (Object.values(ZONE_NAME).includes(nameEl.value) || !nameEl.value) nameEl.value = ZONE_NAME[z];
+    div.querySelector(".i-ftp").value = ZONE_FTP[z];
+    render();
+  });
+  div.querySelectorAll("input,select").forEach(el=>el.addEventListener("input", render));
+  document.getElementById("intervals").appendChild(div);
+  render();
+}
+function readIntervals() {
+  return [...document.querySelectorAll(".interval")].map(el=>({
+    name: el.querySelector(".i-name").value.trim(),
+    seconds: (parseInt(el.querySelector(".i-min").value)||0)*60 + (parseInt(el.querySelector(".i-sec").value)||0),
+    zone: parseInt(el.querySelector(".i-zone").value),
+    rpm: el.querySelector(".i-rpm").value.trim() || null,
+    ftp: parseInt(el.querySelector(".i-ftp").value)||null
+  }));
+}
+function fmt(s){ const m=Math.floor(s/60), ss=s%60; return m+":"+String(ss).padStart(2,"0"); }
+function render() {
+  const iv = readIntervals();
+  const totalSecs = iv.reduce((a,b)=>a+b.seconds,0);
+  const total = totalSecs || 1;
+
+  document.getElementById("pbar").innerHTML = iv.filter(i=>i.seconds>0).map(i=>
+    `<div style="flex:${i.seconds/total};background:${colorFor(i.zone,i.ftp)}"></div>`).join("");
+
+  // colour block on each row
+  document.querySelectorAll(".interval").forEach((el, n) => {
+    const sw = el.querySelector(".zswatch");
+    if (sw && iv[n]) sw.style.background = colorFor(iv[n].zone, iv[n].ftp);
+  });
+
+  document.getElementById("ptotal").textContent = fmt(totalSecs);
+}
+
+
+// ---- Upload ----
+async function upload() {
+  const msg = document.getElementById("msg");
+  msg.className = "msg";
+  const name = document.getElementById("wname").value.trim();
+  const iv = readIntervals().filter(i=>i.name && i.seconds>0);
+  if (!name) return showErr("Give the workout a name.");
+  if (!iv.length) return showErr("Add at least one interval with a name and a time.");
+  const btn = document.getElementById("uploadBtn");
+  btn.disabled = true; btn.textContent = "UPLOADING…";
+  try {
+    const r = await fetch(FN + "/upload-workout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        password: pw,
+        name,
+        video: document.getElementById("vfile").value.trim(),
+        author: document.getElementById("author").value.trim(),
+        intervals: iv
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Upload failed");
+    msg.className = "msg ok";
+    msg.textContent = "Uploaded! It will be live at " + d.url + " in about a minute.";
+  } catch(e) {
+    showErr(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "UPLOAD WORKOUT";
+  }
+}
+function showErr(t){ const m=document.getElementById("msg"); m.className="msg err"; m.textContent=t; }
+
+// ---- Init ----
+(function(){
+  if (pw) showApp();
+  else document.getElementById("pw").focus();
+})();
+</script>
+</body>
+</html>
