@@ -1336,6 +1336,8 @@ if('serviceWorker' in navigator){
   }
   #vp-play:hover{border-color:#00cfff;color:#00cfff}
   #vp-time{font-size:17px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #vp-click{position:absolute;inset:0;z-index:5;cursor:pointer;display:none}
+  #vp-click.show{display:block}
   #yt-player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     width:177.78vh;height:100vh;min-width:100%;min-height:100%;z-index:2;pointer-events:none}
 </style>
@@ -1459,6 +1461,8 @@ if('serviceWorker' in navigator){
     if (ov) ov.style.display = 'none';
 
     usingYT = true;
+    const cl = document.getElementById('vp-click');
+    if (cl) cl.classList.add('show');
 
     if (ytPlayer && ytReady) { ytPlayer.loadVideoById(id); return; }
 
@@ -1496,10 +1500,21 @@ if('serviceWorker' in navigator){
 
   function stopYouTube(){
     usingYT = false;
+    const cl = document.getElementById('vp-click');
+    if (cl) cl.classList.remove('show');
     if (ytPlayer && ytReady) { try { ytPlayer.stopVideo(); } catch(e){} }
     const holder = document.getElementById('yt-player');
     if (holder) holder.style.display = 'none';
   }
+
+  // ---- click anywhere on the video to play/pause ----
+  const clicker = document.createElement('div');
+  clicker.id = 'vp-click';
+  clicker.addEventListener('click', () => {
+    window.toggleVideoPause();
+    setTimeout(syncPlayBtn, 120);
+  });
+  document.getElementById('yt-container').appendChild(clicker);
 
   // ---- scrub bar ----
   const scrub = document.createElement('div');
