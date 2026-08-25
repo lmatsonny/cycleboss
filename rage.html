@@ -1257,6 +1257,222 @@ if('serviceWorker' in navigator){
     }).catch(err => console.log('SW error:', err));
   });
 }
+<!-- ============================================================
+     VIDEO PICKER + YOUTUBE SUPPORT
+     Paste this whole block into rage.html directly BEFORE the
+     final <script> block (the one that registers the service
+     worker), near the bottom of the file.
+     Nothing else in the file needs to change.
+     ============================================================ -->
+<style>
+  #video-picker-btn{
+    position:absolute;top:16px;right:130px;background:rgba(0,0,0,.6);border:1px solid #333;
+    border-radius:6px;padding:7px 12px;color:#888;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;cursor:pointer;font-family:'Barlow',sans-serif;z-index:6
+  }
+  #video-picker-btn:hover{color:#fff;border-color:#555}
+  #video-picker{
+    display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.9);
+    flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center
+  }
+  #video-picker.open{display:flex}
+  #video-picker h3{
+    font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;margin-bottom:18px;color:#fff
+  }
+  #video-picker input[type=text]{
+    width:100%;max-width:460px;background:#111;border:1px solid #2a2a2a;color:#fff;
+    border-radius:6px;padding:11px 14px;font-size:14px;font-family:'Barlow',sans-serif;margin-bottom:10px
+  }
+  #video-picker input[type=text]:focus{outline:none;border-color:#00cfff}
+  .vp-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+  .vp-btn{
+    background:#141414;border:1px solid #252525;color:#fff;border-radius:6px;padding:10px 18px;
+    font-family:'Barlow',sans-serif;font-size:11px;font-weight:600;letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer
+  }
+  .vp-btn:hover{background:#1e1e1e;border-color:#444}
+  .vp-btn.go{background:#00cfff;border-color:#00cfff;color:#001018}
+  .vp-btn.go:hover{background:#33dcff}
+  #vp-note{font-size:11px;color:#666;letter-spacing:.04em;max-width:420px;line-height:1.6}
+  #vp-remember{display:flex;align-items:center;gap:7px;font-size:11px;color:#888;
+    letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;cursor:pointer}
+  #yt-player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:177.78vh;height:100vh;min-width:100%;min-height:100%;z-index:2;pointer-events:none}
+</style>
+
+<script>
+(function(){
+  // ---- state ----
+  let ytPlayer = null, ytReady = false, usingYT = false, pendingId = null;
+  const STORE_KEY = 'cb-video:' + (document.title || 'workout');
+
+  // ---- picker UI ----
+  const road = document.getElementById('road-view');
+
+  const btn = document.createElement('button');
+  btn.id = 'video-picker-btn';
+  btn.textContent = '🎬 Video';
+  btn.onclick = openPicker;
+  road.appendChild(btn);
+
+  const panel = document.createElement('div');
+  panel.id = 'video-picker';
+  panel.innerHTML = `
+    <h3>Choose your video</h3>
+    <input id="vp-url" type="text" placeholder="Paste a YouTube link, or a video ID">
+    <div class="vp-row">
+      <button class="vp-btn go" id="vp-load">Load YouTube</button>
+      <label class="vp-btn" style="display:inline-block">
+        Choose file
+        <input id="vp-file" type="file" accept="video/*" style="display:none">
+      </label>
+      <button class="vp-btn" id="vp-default">Default video</button>
+      <button class="vp-btn" id="vp-close">Cancel</button>
+    </div>
+    <label id="vp-remember"><input type="checkbox" id="vp-save" checked> Remember for this workout</label>
+    <div id="vp-note">The video follows your workout timer — start, pause, and the 15-second skips all control it.</div>
+  `;
+  road.appendChild(panel);
+
+  function openPicker(e){
+    if (e) e.stopPropagation();
+    const saved = safeGet(STORE_KEY);
+    if (saved && saved.type === 'yt') document.getElementById('vp-url').value = 'https://youtu.be/' + saved.id;
+    panel.classList.add('open');
+    setTimeout(()=>document.getElementById('vp-url').focus(), 50);
+  }
+  function closePicker(){ panel.classList.remove('open'); }
+
+  document.getElementById('vp-close').onclick = closePicker;
+  document.getElementById('vp-load').onclick = () => {
+    const id = extractId(document.getElementById('vp-url').value);
+    if (!id) { alert('That does not look like a YouTube link.'); return; }
+    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, { type:'yt', id });
+    loadYouTube(id);
+    closePicker();
+  };
+  document.getElementById('vp-file').onchange = function(){
+    const f = this.files[0];
+    if (!f) return;
+    stopYouTube();
+    const vid = document.getElementById('bg-video');
+    vid.style.display = '';
+    vid.src = URL.createObjectURL(f);
+    vid.play().catch(()=>{});
+    const ov = document.getElementById('mobile-video-pick');
+    if (ov) ov.style.display = 'none';
+    closePicker();
+  };
+  document.getElementById('vp-default').onclick = () => {
+    safeRemove(STORE_KEY);
+    stopYouTube();
+    const vid = document.getElementById('bg-video');
+    vid.style.display = '';
+    if (typeof VIDEO_FILE !== 'undefined') { vid.src = VIDEO_FILE; vid.play().catch(()=>{}); }
+    closePicker();
+  };
+
+  // ---- youtube ----
+  function extractId(raw){
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    if (/^[\w-]{11}$/.test(s)) return s;                       // bare ID
+    const m = s.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/|\/live\/)([\w-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  function loadYouTube(id){
+    const vid = document.getElementById('bg-video');
+    if (vid) { vid.pause(); vid.style.display = 'none'; }
+    const fb = document.getElementById('yt-fallback');
+    if (fb) fb.style.display = 'none';
+    const ov = document.getElementById('mobile-video-pick');
+    if (ov) ov.style.display = 'none';
+
+    usingYT = true;
+
+    if (ytPlayer && ytReady) { ytPlayer.loadVideoById(id); return; }
+
+    pendingId = id;
+    if (!document.getElementById('yt-player')) {
+      const holder = document.createElement('div');
+      holder.id = 'yt-player';
+      document.getElementById('yt-container').appendChild(holder);
+    }
+    if (window.YT && window.YT.Player) { createPlayer(); return; }
+
+    // load the iframe API once
+    if (!document.getElementById('yt-api')) {
+      const tag = document.createElement('script');
+      tag.id = 'yt-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+    window.onYouTubeIframeAPIReady = createPlayer;
+  }
+
+  function createPlayer(){
+    ytPlayer = new YT.Player('yt-player', {
+      videoId: pendingId,
+      playerVars: { autoplay:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
+      events: {
+        onReady: e => {
+          ytReady = true;
+          e.target.playVideo();
+          if (typeof playing !== 'undefined' && !playing) e.target.pauseVideo();
+        }
+      }
+    });
+  }
+
+  function stopYouTube(){
+    usingYT = false;
+    if (ytPlayer && ytReady) { try { ytPlayer.stopVideo(); } catch(e){} }
+    const holder = document.getElementById('yt-player');
+    if (holder) holder.style.display = 'none';
+  }
+
+  // ---- hook into the existing controls ----
+  const _togglePlay = window.togglePlay;
+  window.togglePlay = function(){
+    const wasPlaying = playing;
+    _togglePlay.apply(this, arguments);
+    if (usingYT && ytPlayer && ytReady) {
+      if (wasPlaying) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
+    }
+  };
+
+  const _toggleVideoPause = window.toggleVideoPause;
+  window.toggleVideoPause = function(){
+    if (usingYT && ytPlayer && ytReady) {
+      const st = ytPlayer.getPlayerState();
+      const b = document.getElementById('pause-btn');
+      if (st === 1) { ytPlayer.pauseVideo(); if (b) b.textContent = '▶ VIDEO'; }
+      else { ytPlayer.playVideo(); if (b) b.textContent = '⏸ VIDEO'; }
+      return;
+    }
+    _toggleVideoPause.apply(this, arguments);
+  };
+
+  const _skipVideo = window.skipVideo;
+  window.skipVideo = function(seconds){
+    if (usingYT && ytPlayer && ytReady) {
+      ytPlayer.seekTo(Math.max(0, ytPlayer.getCurrentTime() + seconds), true);
+      return;
+    }
+    _skipVideo.apply(this, arguments);
+  };
+
+  // ---- storage helpers (never break the ride if storage is blocked) ----
+  function safeGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
+  function safeSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  function safeRemove(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+  // ---- restore a remembered choice ----
+  const saved = safeGet(STORE_KEY);
+  if (saved && saved.type === 'yt' && saved.id) loadYouTube(saved.id);
+})();
 </script>
 </body>
 </html>
