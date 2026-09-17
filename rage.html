@@ -22,7 +22,7 @@
 
   /* ── Video hidden mode (split-screen support) ── */
   #app.video-hidden #road-view{display:none}
-  #app.video-hidden #sidebar{width:100%!important}
+  #app.video-hidden #sidebar{width:100%!important;height:100dvh;border-left:none}
 
   #sidebar-top{flex:0 0 auto;display:flex;flex-direction:column;overflow:hidden;border-bottom:2px solid #1a1a1a;}
   #sidebar-bottom{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
@@ -196,6 +196,13 @@
     .seg-name{font-size:13px}
     .seg-details{font-size:10px}
     .seg-dur{font-size:13px}
+
+    /* Video hidden in a narrow (split-screen) window: give the sidebar the
+       whole viewport instead of the 65vh slice reserved for the video, and let
+       the interval list take every pixel the fixed sections don't need. */
+    #app.video-hidden #sidebar{height:100dvh;border-top:none}
+    #app.video-hidden #sidebar-top{flex:0 0 auto!important}
+    #app.video-hidden #sidebar-bottom{flex:1 1 auto!important;min-height:0}
   }
 
   /* ── Phone landscape / projector mode ── */
@@ -1488,7 +1495,7 @@ if('serviceWorker' in navigator){
     const cl = document.getElementById('vp-click');
     if (cl) cl.classList.add('show');
 
-    if (ytPlayer && ytReady) { ytPlayer.loadVideoById(id); return; }
+    if (ytPlayer && ytReady) { ytPlayer.mute(); ytPlayer.loadVideoById(id); return; }
 
     pendingId = id;
     if (!document.getElementById('yt-player')) {
@@ -1511,10 +1518,11 @@ if('serviceWorker' in navigator){
   function createPlayer(){
     ytPlayer = new YT.Player('yt-player', {
       videoId: pendingId,
-      playerVars: { autoplay:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
+      playerVars: { autoplay:1, mute:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
       events: {
         onReady: e => {
           ytReady = true;
+          e.target.mute();   // app is visual-only: never send audio (keeps Bluetooth receivers free for music)
           e.target.playVideo();
           if (typeof playing !== 'undefined' && !playing) e.target.pauseVideo();
         }
