@@ -20,6 +20,11 @@
 
   /* ── Sidebar shell ── */
   #sidebar{width:460px;background:#0d0d0d;border-left:1px solid #222;display:flex;flex-direction:column;overflow:hidden}
+
+  /* ── Video hidden mode (split-screen support) ── */
+  #app.video-hidden #road-view{display:none}
+  #app.video-hidden #sidebar{width:100%!important;height:100dvh;border-left:none}
+
   #sidebar-top{flex:0 0 auto;display:flex;flex-direction:column;overflow:hidden;border-bottom:2px solid #1a1a1a;}
   #sidebar-bottom{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
   #sidebar-bottom::-webkit-scrollbar{width:0px}
@@ -42,7 +47,7 @@
 
 
   /* ── Controls ── */
-  .controls{display:flex;gap:6px;padding:6px 12px 16px;flex-shrink:0}
+  .controls{display:flex;gap:6px;padding:6px 12px 16px;flex-shrink:0;flex-wrap:wrap}
   .btn{flex:1;padding:8px 4px;border:1px solid #252525;background:#141414;color:#fff;border-radius:6px;font-family:'Barlow',sans-serif;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s}
   .btn:hover{background:#1e1e1e;border-color:#333}
   .btn.primary{background:#FFFA8A;color:#000;border-color:#FFFA8A}
@@ -192,6 +197,13 @@
     .seg-name{font-size:13px}
     .seg-details{font-size:10px}
     .seg-dur{font-size:13px}
+
+    /* Video hidden in a narrow (split-screen) window: give the sidebar the
+       whole viewport instead of the 65vh slice reserved for the video, and let
+       the interval list take every pixel the fixed sections don't need. */
+    #app.video-hidden #sidebar{height:100dvh;border-top:none}
+    #app.video-hidden #sidebar-top{flex:0 0 auto!important}
+    #app.video-hidden #sidebar-bottom{flex:1 1 auto!important;min-height:0}
   }
 
   /* ── Phone landscape / projector mode ── */
@@ -301,6 +313,7 @@
         <button class="btn" onclick="skipVideo(15)">15s ⏩</button>
         <button class="btn" onclick="prevSegment()">◀ PREV</button>
         <button class="btn" onclick="nextSegment()">NEXT ▶</button>
+        <button class="btn" id="hide-video-btn" onclick="toggleVideoSection()">🎬 HIDE VIDEO</button>
         <button class="btn" onclick="openEditor()">EDIT</button>
       </div>
 
@@ -455,31 +468,206 @@ const DANCER_FIGS = [
 ];
 
 let workout = [
-  {"name":"White","duration":300,"level":1,"type":"warmup","rpm":"85-95","ftp":55},
-  {"name":"Blue","duration":300,"level":2,"type":"work","rpm":"85-95","ftp":70},
-  {"name":"Green","duration":180,"level":3,"type":"work","rpm":"85-95","ftp":85},
-  {"name":"Yellow","duration":60,"level":4,"type":"work","rpm":"85-95","ftp":100},
-  {"name":"White","duration":60,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Yellow and 90 rpm","duration":180,"level":4,"type":"work","rpm":"90","ftp":100},
-  {"name":"Yellow and 80 rpm","duration":180,"level":4,"type":"work","rpm":"80","ftp":100},
-  {"name":"Yellow and 70 rpm","duration":180,"level":4,"type":"work","rpm":"70","ftp":100},
-  {"name":"White","duration":120,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Red and 90 rpm","duration":60,"level":5,"type":"work","rpm":"90","ftp":106},
-  {"name":"Red and 80 rpm","duration":60,"level":5,"type":"work","rpm":"80","ftp":106},
-  {"name":"Red and 70 rpm","duration":60,"level":5,"type":"work","rpm":"70","ftp":106},
-  {"name":"White","duration":120,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Yellow and 90 rpm","duration":180,"level":4,"type":"work","rpm":"90","ftp":100},
-  {"name":"Yellow and 80 rpm","duration":180,"level":4,"type":"work","rpm":"80","ftp":100},
-  {"name":"Yellow and 70 rpm","duration":180,"level":4,"type":"work","rpm":"70","ftp":100},
-  {"name":"White","duration":120,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Red and 90 rpm","duration":60,"level":5,"type":"work","rpm":"90","ftp":106},
-  {"name":"Red and 80 rpm","duration":60,"level":5,"type":"work","rpm":"80","ftp":106},
-  {"name":"Red and 70 rpm","duration":60,"level":5,"type":"work","rpm":"70","ftp":106},
-  {"name":"White","duration":120,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Yellow and 90 rpm","duration":180,"level":4,"type":"work","rpm":"90","ftp":100},
-  {"name":"Yellow and 80 rpm","duration":180,"level":4,"type":"work","rpm":"80","ftp":100},
-  {"name":"Yellow and 70 rpm","duration":180,"level":4,"type":"work","rpm":"70","ftp":100},
-  {"name":"White","duration":120,"level":1,"type":"rest","rpm":"85-95","ftp":55}
+  {
+    "name": "White",
+    "duration": 300,
+    "level": 1,
+    "type": "warmup",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Blue",
+    "duration": 300,
+    "level": 2,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 70
+  },
+  {
+    "name": "Green",
+    "duration": 180,
+    "level": 3,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 85
+  },
+  {
+    "name": "Yellow",
+    "duration": 60,
+    "level": 4,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 100
+  },
+  {
+    "name": "White",
+    "duration": 60,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Yellow and 90 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "90",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow and 80 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "80",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow and 70 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "70",
+    "ftp": 100
+  },
+  {
+    "name": "White",
+    "duration": 120,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Red and 90 rpm",
+    "duration": 60,
+    "level": 5,
+    "type": "work",
+    "rpm": "90",
+    "ftp": 106
+  },
+  {
+    "name": "Red and 80 rpm",
+    "duration": 60,
+    "level": 5,
+    "type": "work",
+    "rpm": "80",
+    "ftp": 106
+  },
+  {
+    "name": "Red and 70 rpm",
+    "duration": 60,
+    "level": 5,
+    "type": "work",
+    "rpm": "70",
+    "ftp": 106
+  },
+  {
+    "name": "White",
+    "duration": 120,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Yellow and 90 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "90",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow and 80 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "80",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow and 70 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "70",
+    "ftp": 100
+  },
+  {
+    "name": "White",
+    "duration": 120,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Red and 90 rpm",
+    "duration": 60,
+    "level": 5,
+    "type": "work",
+    "rpm": "90",
+    "ftp": 106
+  },
+  {
+    "name": "Red and 80 rpm",
+    "duration": 60,
+    "level": 5,
+    "type": "work",
+    "rpm": "80",
+    "ftp": 106
+  },
+  {
+    "name": "Red and 70 rpm",
+    "duration": 60,
+    "level": 5,
+    "type": "work",
+    "rpm": "70",
+    "ftp": 106
+  },
+  {
+    "name": "White",
+    "duration": 120,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Yellow and 90 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "90",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow and 80 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "80",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow and 70 rpm",
+    "duration": 180,
+    "level": 4,
+    "type": "work",
+    "rpm": "70",
+    "ftp": 100
+  },
+  {
+    "name": "White",
+    "duration": 120,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  }
 ];
 
 let currentSeg = 0, timeLeft = 0, playing = false, ticker = null;
@@ -711,6 +899,15 @@ function toggleVideoPause(){
   if(!vid) return;
   if(vid.paused){vid.play();document.getElementById('pause-btn').textContent='⏸ VIDEO';}
   else{vid.pause();document.getElementById('pause-btn').textContent='▶ VIDEO';}
+}
+
+// ── Hide/show video section (for split-screen setups) ──
+function toggleVideoSection(){
+  const app = document.getElementById('app');
+  const btn = document.getElementById('hide-video-btn');
+  const hidden = app.classList.toggle('video-hidden');
+  btn.textContent = hidden ? '🎬 SHOW VIDEO' : '🎬 HIDE VIDEO';
+  try{ localStorage.setItem('cb-video-hidden', hidden ? '1' : '0'); }catch(e){}
 }
 
 function togglePlay(){
@@ -1004,6 +1201,15 @@ function loadMobileVideo(input){
 const titleEl = document.getElementById('workout-title-display');
 if(titleEl) titleEl.textContent = document.title !== 'Spin Class Trainer' ? document.title : '';
 
+// Restore video-hidden preference (for split-screen setups)
+try{
+  if(localStorage.getItem('cb-video-hidden') === '1'){
+    document.getElementById('app').classList.add('video-hidden');
+    const hb = document.getElementById('hide-video-btn');
+    if(hb) hb.textContent = '🎬 SHOW VIDEO';
+  }
+}catch(e){}
+
 currentSeg=0;timeLeft=workout[0].duration;
 targetSpeed=0.2;speed=0.2;
 updateHUD();updateProgress();
@@ -1014,7 +1220,7 @@ animate();
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/cycleboss/sw.js').then(reg => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
       console.log('SW registered');
     }).catch(err => console.log('SW error:', err));
   });
@@ -1226,7 +1432,7 @@ if('serviceWorker' in navigator){
     const cl = document.getElementById('vp-click');
     if (cl) cl.classList.add('show');
 
-    if (ytPlayer && ytReady) { ytPlayer.loadVideoById(id); return; }
+    if (ytPlayer && ytReady) { ytPlayer.mute(); ytPlayer.loadVideoById(id); return; }
 
     pendingId = id;
     if (!document.getElementById('yt-player')) {
@@ -1249,10 +1455,11 @@ if('serviceWorker' in navigator){
   function createPlayer(){
     ytPlayer = new YT.Player('yt-player', {
       videoId: pendingId,
-      playerVars: { autoplay:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
+      playerVars: { autoplay:1, mute:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
       events: {
         onReady: e => {
           ytReady = true;
+          e.target.mute();   // app is visual-only: never send audio (keeps Bluetooth receivers free for music)
           e.target.playVideo();
           if (typeof playing !== 'undefined' && !playing) e.target.pauseVideo();
         }
@@ -1415,3 +1622,5 @@ if('serviceWorker' in navigator){
   if (saved && saved.type === 'yt' && saved.id) loadYouTube(saved.id);
 })();
 </script>
+</body>
+</html>

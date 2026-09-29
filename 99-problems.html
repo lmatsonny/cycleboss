@@ -468,24 +468,150 @@ const DANCER_FIGS = [
 ];
 
 let workout = [
-  {"name":"White","duration":300,"level":1,"type":"warmup","rpm":"85-95","ftp":55},
-  {"name":"Blue","duration":300,"level":2,"type":"work","rpm":"85-95","ftp":70},
-  {"name":"Green","duration":600,"level":3,"type":"work","rpm":"85-95","ftp":85},
-  {"name":"Yellow","duration":300,"level":4,"type":"work","rpm":"85-95","ftp":100},
-  {"name":"Green","duration":300,"level":3,"type":"work","rpm":"85-95","ftp":85},
-  {"name":"Yellow","duration":600,"level":4,"type":"work","rpm":"85-95","ftp":100},
-  {"name":"Green","duration":600,"level":3,"type":"work","rpm":"85-95","ftp":85},
-  {"name":"Yellow","duration":300,"level":4,"type":"work","rpm":"85-95","ftp":100},
-  {"name":"Yellow","duration":600,"level":4,"type":"work","rpm":"85-95","ftp":100},
-  {"name":"Green","duration":300,"level":3,"type":"work","rpm":"85-95","ftp":85},
-  {"name":"Yellow","duration":300,"level":4,"type":"work","rpm":"85-95","ftp":100},
-  {"name":"White","duration":180,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Red","duration":240,"level":5,"type":"work","rpm":"85-95","ftp":106},
-  {"name":"White","duration":180,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Red","duration":240,"level":5,"type":"work","rpm":"85-95","ftp":106},
-  {"name":"White","duration":180,"level":1,"type":"rest","rpm":"85-95","ftp":55},
-  {"name":"Red","duration":240,"level":5,"type":"work","rpm":"85-95","ftp":106},
-  {"name":"White","duration":180,"level":1,"type":"rest","rpm":"85-95","ftp":55}
+  {
+    "name": "White",
+    "duration": 300,
+    "level": 1,
+    "type": "warmup",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Blue",
+    "duration": 300,
+    "level": 2,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 70
+  },
+  {
+    "name": "Green",
+    "duration": 600,
+    "level": 3,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 85
+  },
+  {
+    "name": "Yellow",
+    "duration": 300,
+    "level": 4,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 100
+  },
+  {
+    "name": "Green",
+    "duration": 300,
+    "level": 3,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 85
+  },
+  {
+    "name": "Yellow",
+    "duration": 600,
+    "level": 4,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 100
+  },
+  {
+    "name": "Green",
+    "duration": 600,
+    "level": 3,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 85
+  },
+  {
+    "name": "Yellow",
+    "duration": 300,
+    "level": 4,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 100
+  },
+  {
+    "name": "Yellow",
+    "duration": 600,
+    "level": 4,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 100
+  },
+  {
+    "name": "Green",
+    "duration": 300,
+    "level": 3,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 85
+  },
+  {
+    "name": "Yellow",
+    "duration": 300,
+    "level": 4,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 100
+  },
+  {
+    "name": "White",
+    "duration": 180,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Red",
+    "duration": 240,
+    "level": 5,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 106
+  },
+  {
+    "name": "White",
+    "duration": 180,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Red",
+    "duration": 240,
+    "level": 5,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 106
+  },
+  {
+    "name": "White",
+    "duration": 180,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  },
+  {
+    "name": "Red",
+    "duration": 240,
+    "level": 5,
+    "type": "work",
+    "rpm": "85-95",
+    "ftp": 106
+  },
+  {
+    "name": "White",
+    "duration": 180,
+    "level": 1,
+    "type": "rest",
+    "rpm": "85-95",
+    "ftp": 55
+  }
 ];
 
 let currentSeg = 0, timeLeft = 0, playing = false, ticker = null;
@@ -1038,7 +1164,7 @@ animate();
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/cycleboss/sw.js').then(reg => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
       console.log('SW registered');
     }).catch(err => console.log('SW error:', err));
   });

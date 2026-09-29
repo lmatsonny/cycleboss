@@ -19,6 +19,11 @@
 
   /* ── Sidebar shell ── */
   #sidebar{width:460px;background:#0d0d0d;border-left:1px solid #222;display:flex;flex-direction:column;overflow:hidden}
+
+  /* ── Video hidden mode (split-screen support) ── */
+  #app.video-hidden #road-view{display:none}
+  #app.video-hidden #sidebar{width:100%!important;height:100dvh;border-left:none}
+
   #sidebar-top{flex:0 0 auto;display:flex;flex-direction:column;overflow:hidden;border-bottom:2px solid #1a1a1a;}
   #sidebar-bottom{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
   #sidebar-bottom::-webkit-scrollbar{width:0px}
@@ -41,7 +46,7 @@
 
 
   /* ── Controls ── */
-  .controls{display:flex;gap:6px;padding:6px 12px 16px;flex-shrink:0}
+  .controls{display:flex;gap:6px;padding:6px 12px 16px;flex-shrink:0;flex-wrap:wrap}
   .btn{flex:1;padding:8px 4px;border:1px solid #252525;background:#141414;color:#fff;border-radius:6px;font-family:'Barlow',sans-serif;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s}
   .btn:hover{background:#1e1e1e;border-color:#333}
   .btn.primary{background:#FFFA8A;color:#000;border-color:#FFFA8A}
@@ -191,6 +196,13 @@
     .seg-name{font-size:13px}
     .seg-details{font-size:10px}
     .seg-dur{font-size:13px}
+
+    /* Video hidden in a narrow (split-screen) window: give the sidebar the
+       whole viewport instead of the 65vh slice reserved for the video, and let
+       the interval list take every pixel the fixed sections don't need. */
+    #app.video-hidden #sidebar{height:100dvh;border-top:none}
+    #app.video-hidden #sidebar-top{flex:0 0 auto!important}
+    #app.video-hidden #sidebar-bottom{flex:1 1 auto!important;min-height:0}
   }
 
   /* ── Phone landscape / projector mode ── */
@@ -296,8 +308,11 @@
       <div class="controls">
         <button class="btn primary" id="start-btn" onclick="togglePlay()">START</button>
         <button class="btn" id="pause-btn" onclick="toggleVideoPause()">⏸ VIDEO</button>
+        <button class="btn" onclick="skipVideo(-15)">⏪ 15s</button>
+        <button class="btn" onclick="skipVideo(15)">15s ⏩</button>
         <button class="btn" onclick="prevSegment()">◀ PREV</button>
         <button class="btn" onclick="nextSegment()">NEXT ▶</button>
+        <button class="btn" id="hide-video-btn" onclick="toggleVideoSection()">🎬 HIDE VIDEO</button>
         <button class="btn" onclick="openEditor()">EDIT</button>
       </div>
 
@@ -933,15 +948,16 @@ function updateIntervalProgress(){
   }).join('');
 }
 
-function updateVideoSpeed(){
-  const seg = workout[currentSeg];
-  if(!seg) return;
+
+function skipVideo(seconds){
   const vid = document.getElementById('bg-video');
-  if(!vid) return;
-  const rpm = parseInt(seg.rpm)||70;
-  // map rpm range 50-110 to playback rate 0.5-2.0
-  const rate = Math.min(2.0, Math.max(0.25, (rpm - 50) / 60 * 1.75 + 0.25));
-  vid.playbackRate = parseFloat(rate.toFixed(2));
+  if(!vid || !vid.duration) return;
+  vid.currentTime = Math.max(0, Math.min(vid.duration, vid.currentTime + seconds));
+}
+function updateVideoSpeed(){
+  // Video speed adjustment disabled - always play at normal speed
+  const vid = document.getElementById('bg-video');
+  if(vid) vid.playbackRate = 1.0;
 }
 
 function updateProgress(){
@@ -1002,6 +1018,15 @@ function toggleVideoPause(){
   if(!vid) return;
   if(vid.paused){vid.play();document.getElementById('pause-btn').textContent='⏸ VIDEO';}
   else{vid.pause();document.getElementById('pause-btn').textContent='▶ VIDEO';}
+}
+
+// ── Hide/show video section (for split-screen setups) ──
+function toggleVideoSection(){
+  const app = document.getElementById('app');
+  const btn = document.getElementById('hide-video-btn');
+  const hidden = app.classList.toggle('video-hidden');
+  btn.textContent = hidden ? '🎬 SHOW VIDEO' : '🎬 HIDE VIDEO';
+  try{ localStorage.setItem('cb-video-hidden', hidden ? '1' : '0'); }catch(e){}
 }
 
 function togglePlay(){
@@ -1295,6 +1320,15 @@ function loadMobileVideo(input){
 const titleEl = document.getElementById('workout-title-display');
 if(titleEl) titleEl.textContent = document.title !== 'Spin Class Trainer' ? document.title : '';
 
+// Restore video-hidden preference (for split-screen setups)
+try{
+  if(localStorage.getItem('cb-video-hidden') === '1'){
+    document.getElementById('app').classList.add('video-hidden');
+    const hb = document.getElementById('hide-video-btn');
+    if(hb) hb.textContent = '🎬 SHOW VIDEO';
+  }
+}catch(e){}
+
 currentSeg=0;timeLeft=workout[0].duration;
 targetSpeed=0.2;speed=0.2;
 updateHUD();updateProgress();
@@ -1305,11 +1339,407 @@ animate();
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/cycleboss/sw.js').then(reg => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
       console.log('SW registered');
     }).catch(err => console.log('SW error:', err));
   });
 }
+</script>
+<!-- ============================================================
+     VIDEO PICKER + YOUTUBE SUPPORT
+     REPLACING AN EARLIER VERSION? In rage.html, delete everything
+     from the previous "VIDEO PICKER" comment down to the last
+     </script> before </body>, then paste this in its place.
+
+     FIRST TIME? Paste this whole block near the bottom of
+     rage.html, just before </body>. Make sure the script block
+     above it ends with its own </script> tag.
+     ============================================================ -->
+<style>
+  #video-picker-btn{
+    position:absolute;top:16px;right:130px;background:rgba(0,0,0,.6);border:1px solid #333;
+    border-radius:6px;padding:7px 12px;color:#888;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;cursor:pointer;font-family:'Barlow',sans-serif;z-index:6
+  }
+  #video-picker-btn:hover{color:#fff;border-color:#555}
+  #video-picker-btn{opacity:0;transition:opacity .25s}
+  #road-view:hover #video-picker-btn{opacity:1}
+  #video-picker{
+    display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.9);
+    flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center
+  }
+  #video-picker.open{display:flex}
+  #video-picker h3{
+    font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;margin-bottom:18px;color:#fff
+  }
+  #video-picker input[type=text]{
+    width:100%;max-width:460px;background:#111;border:1px solid #2a2a2a;color:#fff;
+    border-radius:6px;padding:11px 14px;font-size:14px;font-family:'Barlow',sans-serif;margin-bottom:10px
+  }
+  #video-picker input[type=text]:focus{outline:none;border-color:#00cfff}
+  #vp-lib{
+    width:100%;max-width:460px;background:#111;border:1px solid #2a2a2a;color:#fff;
+    border-radius:6px;padding:11px 14px;font-size:14px;font-family:'Barlow',sans-serif;margin-bottom:14px
+  }
+  #vp-lib:focus{outline:none;border-color:#00cfff}
+  #vp-lib option:disabled{color:#555}
+  .vp-or{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#555;margin-bottom:10px}
+  .vp-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+  .vp-btn{
+    background:#141414;border:1px solid #252525;color:#fff;border-radius:6px;padding:10px 18px;
+    font-family:'Barlow',sans-serif;font-size:11px;font-weight:600;letter-spacing:.06em;
+    text-transform:uppercase;cursor:pointer
+  }
+  .vp-btn:hover{background:#1e1e1e;border-color:#444}
+  .vp-btn.go{background:#00cfff;border-color:#00cfff;color:#001018}
+  .vp-btn.go:hover{background:#33dcff}
+  #vp-note{font-size:11px;color:#666;letter-spacing:.04em;max-width:420px;line-height:1.6}
+  #vp-remember{display:flex;align-items:center;gap:7px;font-size:11px;color:#888;
+    letter-spacing:.06em;text-transform:uppercase;margin-bottom:16px;cursor:pointer}
+  #vp-scrub{
+    position:absolute;bottom:0;left:0;right:0;z-index:7;padding:14px 18px 10px;
+    background:linear-gradient(to top,rgba(0,0,0,.75),transparent);
+    display:none;align-items:center;gap:12px;font-family:'Barlow Condensed',sans-serif;
+    opacity:0;transition:opacity .25s;pointer-events:none
+  }
+  #vp-scrub.show{display:flex}
+  /* only visible while the mouse is over the video area */
+  #road-view:hover #vp-scrub.show,
+  #vp-scrub.show.holding{opacity:1;pointer-events:auto}
+  #vp-track{
+    flex:1;height:6px;background:rgba(255,255,255,.22);border-radius:3px;
+    position:relative;cursor:pointer
+  }
+  #vp-track:hover{height:9px}
+  #vp-fill{position:absolute;left:0;top:0;bottom:0;background:#00cfff;border-radius:3px;width:0}
+  #vp-knob{
+    position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:#fff;
+    transform:translate(-50%,-50%);left:0;box-shadow:0 0 6px rgba(0,0,0,.6);pointer-events:none
+  }
+  #vp-play{
+    background:none;border:1px solid rgba(255,255,255,.3);border-radius:6px;
+    color:#fff;font-size:15px;line-height:1;padding:7px 11px;cursor:pointer;flex-shrink:0
+  }
+  #vp-play:hover{border-color:#00cfff;color:#00cfff}
+  #vp-time{font-size:17px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #vp-click{position:absolute;inset:0;z-index:5;cursor:pointer;display:none}
+  #vp-click.show{display:block}
+  #yt-player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:177.78vh;height:100vh;min-width:100%;min-height:100%;z-index:2;pointer-events:none}
+</style>
+
+<script>
+(function(){
+  // ---- state ----
+  let ytPlayer = null, ytReady = false, usingYT = false, pendingId = null;
+  const STORE_KEY = 'cb-video:' + (document.title || 'workout');
+
+  // ---- picker UI ----
+  const road = document.getElementById('road-view');
+
+  const btn = document.createElement('button');
+  btn.id = 'video-picker-btn';
+  btn.textContent = '🎬 Video';
+  btn.onclick = openPicker;
+  road.appendChild(btn);
+
+  const panel = document.createElement('div');
+  panel.id = 'video-picker';
+  panel.innerHTML = `
+    <h3>Choose your video</h3>
+    <select id="vp-lib"><option value="">Loading library…</option></select>
+    <div class="vp-or">or paste a link</div>
+    <input id="vp-url" type="text" placeholder="Paste a YouTube link, or a video ID">
+    <div class="vp-row">
+      <button class="vp-btn go" id="vp-load">Load YouTube</button>
+      <label class="vp-btn" style="display:inline-block">
+        Choose file
+        <input id="vp-file" type="file" accept="video/*" style="display:none">
+      </label>
+      <button class="vp-btn" id="vp-default">Default video</button>
+      <button class="vp-btn" id="vp-close">Cancel</button>
+    </div>
+    <label id="vp-remember"><input type="checkbox" id="vp-save" checked> Remember for this workout</label>
+    <div id="vp-note">The video follows your workout timer — start, pause, and the 15-second skips all control it.</div>
+  `;
+  road.appendChild(panel);
+
+  function openPicker(e){
+    if (e) e.stopPropagation();
+    const saved = safeGet(STORE_KEY);
+    if (saved && saved.type === 'yt') document.getElementById('vp-url').value = 'https://youtu.be/' + saved.id;
+    panel.classList.add('open');
+    setTimeout(()=>document.getElementById('vp-url').focus(), 50);
+  }
+  function closePicker(){ panel.classList.remove('open'); }
+
+  document.getElementById('vp-close').onclick = closePicker;
+  document.getElementById('vp-load').onclick = () => {
+    const id = extractId(document.getElementById('vp-url').value);
+    if (!id) { alert('That does not look like a YouTube link.'); return; }
+    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, { type:'yt', id });
+    loadYouTube(id);
+    closePicker();
+  };
+  document.getElementById('vp-file').onchange = function(){
+    const f = this.files[0];
+    if (!f) return;
+    stopYouTube();
+    const vid = document.getElementById('bg-video');
+    vid.style.display = '';
+    vid.src = URL.createObjectURL(f);
+    vid.play().catch(()=>{});
+    const ov = document.getElementById('mobile-video-pick');
+    if (ov) ov.style.display = 'none';
+    closePicker();
+  };
+  document.getElementById('vp-default').onclick = () => {
+    safeRemove(STORE_KEY);
+    stopYouTube();
+    const vid = document.getElementById('bg-video');
+    vid.style.display = '';
+    if (typeof VIDEO_FILE !== 'undefined') { vid.src = VIDEO_FILE; vid.play().catch(()=>{}); }
+    closePicker();
+  };
+
+  // ---- shared video library (videos.json, next to this file) ----
+  const lib = document.getElementById('vp-lib');
+  fetch('videos.json?t=' + Date.now())
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(list => {
+      if (!Array.isArray(list) || !list.length) throw 0;
+      lib.innerHTML = '<option value="">Pick a ride…</option>' + list.map(v => {
+        const id = extractId(v.yt || v.url || '');
+        return id
+          ? `<option value="${id}">${escapeText(v.name)}</option>`
+          : `<option disabled>${escapeText(v.name)} — link needed</option>`;
+      }).join('');
+    })
+    .catch(() => { lib.style.display = 'none'; document.querySelector('.vp-or').style.display = 'none'; });
+
+  lib.addEventListener('change', () => {
+    if (!lib.value) return;
+    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, { type:'yt', id: lib.value });
+    loadYouTube(lib.value);
+    closePicker();
+    lib.selectedIndex = 0;
+  });
+
+  function escapeText(t){
+    return String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+
+  // ---- youtube ----
+  function extractId(raw){
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    if (/^[\w-]{11}$/.test(s)) return s;                       // bare ID
+    const m = s.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/|\/live\/)([\w-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  function loadYouTube(id){
+    const vid = document.getElementById('bg-video');
+    if (vid) { vid.pause(); vid.style.display = 'none'; }
+    const fb = document.getElementById('yt-fallback');
+    if (fb) fb.style.display = 'none';
+    const ov = document.getElementById('mobile-video-pick');
+    if (ov) ov.style.display = 'none';
+
+    usingYT = true;
+    const cl = document.getElementById('vp-click');
+    if (cl) cl.classList.add('show');
+
+    if (ytPlayer && ytReady) { ytPlayer.mute(); ytPlayer.loadVideoById(id); return; }
+
+    pendingId = id;
+    if (!document.getElementById('yt-player')) {
+      const holder = document.createElement('div');
+      holder.id = 'yt-player';
+      document.getElementById('yt-container').appendChild(holder);
+    }
+    if (window.YT && window.YT.Player) { createPlayer(); return; }
+
+    // load the iframe API once
+    if (!document.getElementById('yt-api')) {
+      const tag = document.createElement('script');
+      tag.id = 'yt-api';
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+    window.onYouTubeIframeAPIReady = createPlayer;
+  }
+
+  function createPlayer(){
+    ytPlayer = new YT.Player('yt-player', {
+      videoId: pendingId,
+      playerVars: { autoplay:1, mute:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
+      events: {
+        onReady: e => {
+          ytReady = true;
+          e.target.mute();   // app is visual-only: never send audio (keeps Bluetooth receivers free for music)
+          e.target.playVideo();
+          if (typeof playing !== 'undefined' && !playing) e.target.pauseVideo();
+        }
+      }
+    });
+  }
+
+  function stopYouTube(){
+    usingYT = false;
+    const cl = document.getElementById('vp-click');
+    if (cl) cl.classList.remove('show');
+    if (ytPlayer && ytReady) { try { ytPlayer.stopVideo(); } catch(e){} }
+    const holder = document.getElementById('yt-player');
+    if (holder) holder.style.display = 'none';
+  }
+
+  // ---- click anywhere on the video to play/pause ----
+  const clicker = document.createElement('div');
+  clicker.id = 'vp-click';
+  clicker.addEventListener('click', () => {
+    window.toggleVideoPause();
+    setTimeout(syncPlayBtn, 120);
+  });
+  document.getElementById('yt-container').appendChild(clicker);
+
+  // ---- scrub bar ----
+  const scrub = document.createElement('div');
+  scrub.id = 'vp-scrub';
+  scrub.innerHTML = `
+    <button id="vp-play" title="Play / pause video">▶</button>
+    <div id="vp-track"><div id="vp-fill"></div><div id="vp-knob"></div></div>
+    <div id="vp-time">0:00 / 0:00</div>
+  `;
+  road.appendChild(scrub);
+
+  const playBtn = scrub.querySelector('#vp-play');
+  const track = scrub.querySelector('#vp-track');
+  const fill  = scrub.querySelector('#vp-fill');
+  const knob  = scrub.querySelector('#vp-knob');
+  const tlabel= scrub.querySelector('#vp-time');
+  let dragging = false;
+
+  // one set of accessors covering both players
+  function vDuration(){
+    if (usingYT) return (ytPlayer && ytReady) ? (ytPlayer.getDuration() || 0) : 0;
+    const v = document.getElementById('bg-video');
+    return (v && isFinite(v.duration)) ? v.duration : 0;
+  }
+  function vCurrent(){
+    if (usingYT) return (ytPlayer && ytReady) ? (ytPlayer.getCurrentTime() || 0) : 0;
+    const v = document.getElementById('bg-video');
+    return v ? v.currentTime : 0;
+  }
+  function vSeek(t){
+    if (usingYT) { if (ytPlayer && ytReady) ytPlayer.seekTo(t, true); return; }
+    const v = document.getElementById('bg-video');
+    if (v && isFinite(v.duration)) v.currentTime = Math.max(0, Math.min(v.duration, t));
+  }
+  function clock(s){
+    s = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+    return (h ? h + ':' + String(m).padStart(2,'0') : String(m)) + ':' + String(ss).padStart(2,'0');
+  }
+
+  function posFromEvent(e){
+    const r = track.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+    return Math.max(0, Math.min(1, x / r.width));
+  }
+  function paint(pct, cur, dur){
+    fill.style.width = (pct*100) + '%';
+    knob.style.left  = (pct*100) + '%';
+    tlabel.textContent = clock(cur) + ' / ' + clock(dur);
+  }
+
+  track.addEventListener('pointerdown', e => {
+    dragging = true;
+    scrub.classList.add('holding');
+    track.setPointerCapture(e.pointerId);
+    const p = posFromEvent(e);
+    paint(p, p * vDuration(), vDuration());
+  });
+  track.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const p = posFromEvent(e);
+    paint(p, p * vDuration(), vDuration());
+  });
+  track.addEventListener('pointerup', e => {
+    if (!dragging) return;
+    dragging = false;
+    scrub.classList.remove('holding');
+    const dur = vDuration();
+    if (dur) vSeek(posFromEvent(e) * dur);
+  });
+
+  function vIsPlaying(){
+    if (usingYT) return !!(ytPlayer && ytReady && ytPlayer.getPlayerState() === 1);
+    const v = document.getElementById('bg-video');
+    return !!(v && !v.paused && !v.ended);
+  }
+
+  playBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    window.toggleVideoPause();          // same action as the sidebar VIDEO button
+    setTimeout(syncPlayBtn, 120);
+  });
+
+  function syncPlayBtn(){
+    playBtn.textContent = vIsPlaying() ? '\u23f8' : '\u25b6';
+  }
+
+  setInterval(() => {
+    syncPlayBtn();
+    const dur = vDuration();
+    if (!dur) { scrub.classList.remove('show'); return; }
+    scrub.classList.add('show');
+    if (dragging) return;
+    const cur = vCurrent();
+    paint(cur / dur, cur, dur);
+  }, 400);
+
+  // ---- hook into the existing controls ----
+  const _togglePlay = window.togglePlay;
+  window.togglePlay = function(){
+    const wasPlaying = playing;
+    _togglePlay.apply(this, arguments);
+    if (usingYT && ytPlayer && ytReady) {
+      if (wasPlaying) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
+    }
+  };
+
+  const _toggleVideoPause = window.toggleVideoPause;
+  window.toggleVideoPause = function(){
+    if (usingYT && ytPlayer && ytReady) {
+      const st = ytPlayer.getPlayerState();
+      const b = document.getElementById('pause-btn');
+      if (st === 1) { ytPlayer.pauseVideo(); if (b) b.textContent = '▶ VIDEO'; }
+      else { ytPlayer.playVideo(); if (b) b.textContent = '⏸ VIDEO'; }
+      return;
+    }
+    _toggleVideoPause.apply(this, arguments);
+  };
+
+  const _skipVideo = window.skipVideo;
+  window.skipVideo = function(seconds){
+    if (usingYT && ytPlayer && ytReady) {
+      ytPlayer.seekTo(Math.max(0, ytPlayer.getCurrentTime() + seconds), true);
+      return;
+    }
+    _skipVideo.apply(this, arguments);
+  };
+
+  // ---- storage helpers (never break the ride if storage is blocked) ----
+  function safeGet(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } }
+  function safeSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  function safeRemove(k){ try { localStorage.removeItem(k); } catch(e){} }
+
+  // ---- restore a remembered choice ----
+  const saved = safeGet(STORE_KEY);
+  if (saved && saved.type === 'yt' && saved.id) loadYouTube(saved.id);
+})();
 </script>
 </body>
 </html>
