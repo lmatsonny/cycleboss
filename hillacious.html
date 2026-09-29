@@ -1348,6 +1348,15 @@ if('serviceWorker' in navigator){
   #video-picker-btn:hover{color:#fff;border-color:#555}
   #video-picker-btn{opacity:0;transition:opacity .25s}
   #road-view:hover #video-picker-btn{opacity:1}
+  #video-sound-btn{
+    position:absolute;top:16px;right:220px;background:rgba(0,0,0,.6);border:1px solid #333;
+    border-radius:6px;padding:7px 12px;color:#888;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;cursor:pointer;font-family:'Barlow',sans-serif;z-index:6;
+    opacity:0;transition:opacity .25s
+  }
+  #video-sound-btn:hover{color:#fff;border-color:#555}
+  #video-sound-btn.on{color:#00cfff;border-color:#00cfff}
+  #road-view:hover #video-sound-btn{opacity:1}
   #video-picker{
     display:none;position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.9);
     flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center
@@ -1407,6 +1416,15 @@ if('serviceWorker' in navigator){
   }
   #vp-play:hover{border-color:#00cfff;color:#00cfff}
   #vp-time{font-size:17px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #vp-list{display:none;align-items:center;gap:6px;flex-shrink:0}
+  #vp-list.show{display:flex}
+  #vp-list button{
+    background:none;border:1px solid rgba(255,255,255,.3);border-radius:6px;
+    color:#fff;font-size:13px;line-height:1;padding:7px 9px;cursor:pointer
+  }
+  #vp-list button:hover{border-color:#00cfff;color:#00cfff}
+  #vp-count{font-size:15px;font-weight:700;color:#00cfff;letter-spacing:.06em;
+    font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 2px}
   #vp-click{position:absolute;inset:0;z-index:5;cursor:pointer;display:none}
   #vp-click.show{display:block}
   #yt-player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
@@ -1416,8 +1434,11 @@ if('serviceWorker' in navigator){
 <script>
 (function(){
   // ---- state ----
-  let ytPlayer = null, ytReady = false, usingYT = false, pendingId = null;
+  let ytPlayer = null, ytReady = false, usingYT = false, pendingSel = null;
+  let currentSel = null;          // {kind:'video', id} or {kind:'list', id, start}
+  let soundOn = false;            // user's sound preference (video starts muted; see note below)
   const STORE_KEY = 'cb-video:' + (document.title || 'workout');
+  const SOUND_KEY = 'cb-video-sound';
 
   // ---- picker UI ----
   const road = document.getElementById('road-view');
@@ -1428,13 +1449,37 @@ if('serviceWorker' in navigator){
   btn.onclick = openPicker;
   road.appendChild(btn);
 
+  // Sound toggle. Browsers block UNMUTED autoplay until the user has clicked
+  // something, so the video always starts muted; the remembered preference is
+  // applied on the first click (Start, the video button, this button, etc.).
+  const sndBtn = document.createElement('button');
+  sndBtn.id = 'video-sound-btn';
+  road.appendChild(sndBtn);
+  soundOn = safeGet(SOUND_KEY) === true;
+  function paintSound(){
+    sndBtn.textContent = soundOn ? '🔊 Sound on' : '🔇 Sound off';
+    sndBtn.classList.toggle('on', soundOn);
+  }
+  function applySound(){
+    if (ytPlayer && ytReady) { try { soundOn ? ytPlayer.unMute() : ytPlayer.mute(); } catch(e){} }
+    const v = document.getElementById('bg-video');
+    if (v) v.muted = !soundOn;
+  }
+  sndBtn.onclick = e => {
+    e.stopPropagation();
+    soundOn = !soundOn;
+    safeSet(SOUND_KEY, soundOn);
+    paintSound(); applySound();
+  };
+  paintSound();
+
   const panel = document.createElement('div');
   panel.id = 'video-picker';
   panel.innerHTML = `
     <h3>Choose your video</h3>
     <select id="vp-lib"><option value="">Loading library…</option></select>
     <div class="vp-or">or paste a link</div>
-    <input id="vp-url" type="text" placeholder="Paste a YouTube link, or a video ID">
+    <input id="vp-url" type="text" placeholder="Paste a YouTube video or playlist link">
     <div class="vp-row">
       <button class="vp-btn go" id="vp-load">Load YouTube</button>
       <label class="vp-btn" style="display:inline-block">
@@ -1445,14 +1490,15 @@ if('serviceWorker' in navigator){
       <button class="vp-btn" id="vp-close">Cancel</button>
     </div>
     <label id="vp-remember"><input type="checkbox" id="vp-save" checked> Remember for this workout</label>
-    <div id="vp-note">The video follows your workout timer — start, pause, and the 15-second skips all control it.</div>
+    <div id="vp-note">The video follows your workout timer — start, pause, and the 15-second skips all control it. Playlists play straight through; use ⏮ ⏭ on the video bar to jump between rides. Sound is off by default — the 🔊 button turns it on (heads up: audio from this computer can bump a phone off the Bluetooth receiver).</div>
   `;
   road.appendChild(panel);
 
   function openPicker(e){
     if (e) e.stopPropagation();
     const saved = safeGet(STORE_KEY);
-    if (saved && saved.type === 'yt') document.getElementById('vp-url').value = 'https://youtu.be/' + saved.id;
+    const sel = selFromSaved(saved);
+    if (sel) document.getElementById('vp-url').value = selToUrl(sel);
     panel.classList.add('open');
     setTimeout(()=>document.getElementById('vp-url').focus(), 50);
   }
@@ -1460,10 +1506,10 @@ if('serviceWorker' in navigator){
 
   document.getElementById('vp-close').onclick = closePicker;
   document.getElementById('vp-load').onclick = () => {
-    const id = extractId(document.getElementById('vp-url').value);
-    if (!id) { alert('That does not look like a YouTube link.'); return; }
-    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, { type:'yt', id });
-    loadYouTube(id);
+    const sel = parseYT(document.getElementById('vp-url').value);
+    if (!sel) { alert('That does not look like a YouTube video or playlist link.'); return; }
+    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, selToSaved(sel));
+    loadYouTube(sel);
     closePicker();
   };
   document.getElementById('vp-file').onchange = function(){
@@ -1480,11 +1526,13 @@ if('serviceWorker' in navigator){
   };
   document.getElementById('vp-default').onclick = () => {
     safeRemove(STORE_KEY);
+    closePicker();
+    const def = defaultYT();
+    if (def) { loadYouTube(def); return; }
     stopYouTube();
     const vid = document.getElementById('bg-video');
     vid.style.display = '';
     if (typeof VIDEO_FILE !== 'undefined') { vid.src = VIDEO_FILE; vid.play().catch(()=>{}); }
-    closePicker();
   };
 
   // ---- shared video library (videos.json, next to this file) ----
@@ -1494,9 +1542,9 @@ if('serviceWorker' in navigator){
     .then(list => {
       if (!Array.isArray(list) || !list.length) throw 0;
       lib.innerHTML = '<option value="">Pick a ride…</option>' + list.map(v => {
-        const id = extractId(v.yt || v.url || '');
-        return id
-          ? `<option value="${id}">${escapeText(v.name)}</option>`
+        const sel = parseYT(v.yt || v.url || '');
+        return sel
+          ? `<option value="${selToUrl(sel)}">${escapeText(v.name)}${sel.kind === 'list' ? ' (playlist)' : ''}</option>`
           : `<option disabled>${escapeText(v.name)} — link needed</option>`;
       }).join('');
     })
@@ -1504,8 +1552,10 @@ if('serviceWorker' in navigator){
 
   lib.addEventListener('change', () => {
     if (!lib.value) return;
-    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, { type:'yt', id: lib.value });
-    loadYouTube(lib.value);
+    const sel = parseYT(lib.value);
+    if (!sel) return;
+    if (document.getElementById('vp-save').checked) safeSet(STORE_KEY, selToSaved(sel));
+    loadYouTube(sel);
     closePicker();
     lib.selectedIndex = 0;
   });
@@ -1515,15 +1565,40 @@ if('serviceWorker' in navigator){
   }
 
   // ---- youtube ----
-  function extractId(raw){
+  // Accepts: bare 11-char video ID, any video link (watch?v=, youtu.be/, /embed/, /shorts/, /live/),
+  // a playlist link (playlist?list=…), or a watch link that also carries &list=… (starts at that video).
+  function parseYT(raw){
     const s = String(raw || '').trim();
     if (!s) return null;
-    if (/^[\w-]{11}$/.test(s)) return s;                       // bare ID
-    const m = s.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/|\/live\/)([\w-]{11})/);
-    return m ? m[1] : null;
+    if (/^[\w-]{11}$/.test(s)) return { kind:'video', id:s };
+    const list = s.match(/[?&#]list=([\w-]+)/);
+    const vid  = s.match(/(?:v=|\/embed\/|youtu\.be\/|\/shorts\/|\/live\/)([\w-]{11})/);
+    if (list) return { kind:'list', id:list[1], start: vid ? vid[1] : null };
+    if (vid)  return { kind:'video', id:vid[1] };
+    if (/^(PL|UU|OL|RD|FL)[\w-]{10,}$/.test(s)) return { kind:'list', id:s };   // bare playlist ID
+    return null;
+  }
+  function selToUrl(sel){
+    if (sel.kind === 'list')
+      return sel.start ? `https://www.youtube.com/watch?v=${sel.start}&list=${sel.id}`
+                       : `https://www.youtube.com/playlist?list=${sel.id}`;
+    return 'https://youtu.be/' + sel.id;
+  }
+  function selToSaved(sel){
+    return sel.kind === 'list' ? { type:'yt-list', id:sel.id, start:sel.start || null }
+                               : { type:'yt', id:sel.id };
+  }
+  function selFromSaved(saved){
+    if (!saved) return null;
+    if (saved.type === 'yt-list' && saved.id) return { kind:'list', id:saved.id, start:saved.start || null };
+    if (saved.type === 'yt' && saved.id)      return { kind:'video', id:saved.id };
+    return null;
   }
 
-  function loadYouTube(id){
+  function loadYouTube(sel){
+    if (typeof sel === 'string') sel = parseYT(sel);
+    if (!sel) return;
+    currentSel = sel;
     const vid = document.getElementById('bg-video');
     if (vid) { vid.pause(); vid.style.display = 'none'; }
     const fb = document.getElementById('yt-fallback');
@@ -1534,10 +1609,21 @@ if('serviceWorker' in navigator){
     usingYT = true;
     const cl = document.getElementById('vp-click');
     if (cl) cl.classList.add('show');
+    const holderShown = document.getElementById('yt-player');
+    if (holderShown) holderShown.style.display = '';
 
-    if (ytPlayer && ytReady) { ytPlayer.mute(); ytPlayer.loadVideoById(id); return; }
+    if (ytPlayer && ytReady) {
+      if (sel.kind === 'list') {
+        ytPlayer.loadPlaylist({ listType:'playlist', list:sel.id });
+        jumpToStart(sel.start);
+      } else {
+        ytPlayer.loadVideoById(sel.id);
+      }
+      applySound();
+      return;
+    }
 
-    pendingId = id;
+    pendingSel = sel;
     if (!document.getElementById('yt-player')) {
       const holder = document.createElement('div');
       holder.id = 'yt-player';
@@ -1555,19 +1641,32 @@ if('serviceWorker' in navigator){
     window.onYouTubeIframeAPIReady = createPlayer;
   }
 
+  // When a playlist link also names a video, hop to that entry once the playlist is known.
+  function jumpToStart(startId, tries){
+    if (!startId) return;
+    tries = tries || 0;
+    let ids = [];
+    try { ids = ytPlayer.getPlaylist() || []; } catch(e){}
+    const i = ids.indexOf(startId);
+    if (i >= 0) { if (ytPlayer.getPlaylistIndex() !== i) ytPlayer.playVideoAt(i); return; }
+    if (tries < 20) setTimeout(() => jumpToStart(startId, tries + 1), 300);
+  }
+
   function createPlayer(){
-    ytPlayer = new YT.Player('yt-player', {
-      videoId: pendingId,
-      playerVars: { autoplay:1, mute:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 },
-      events: {
-        onReady: e => {
-          ytReady = true;
-          e.target.mute();   // app is visual-only: never send audio (keeps Bluetooth receivers free for music)
-          e.target.playVideo();
-          if (typeof playing !== 'undefined' && !playing) e.target.pauseVideo();
-        }
+    const sel = pendingSel;
+    const vars = { autoplay:1, mute:1, controls:0, modestbranding:1, rel:0, playsinline:1, fs:0, iv_load_policy:3 };
+    const opts = { playerVars: vars, events: {
+      onReady: e => {
+        ytReady = true;
+        e.target.mute();      // start muted so autoplay is allowed; applySound() flips it on the first click
+        e.target.playVideo();
+        if (typeof playing !== 'undefined' && !playing) e.target.pauseVideo();
+        if (sel.kind === 'list') jumpToStart(sel.start);
       }
-    });
+    } };
+    if (sel.kind === 'list') { vars.listType = 'playlist'; vars.list = sel.id; }
+    else opts.videoId = sel.id;
+    ytPlayer = new YT.Player('yt-player', opts);
   }
 
   function stopYouTube(){
@@ -1595,6 +1694,11 @@ if('serviceWorker' in navigator){
     <button id="vp-play" title="Play / pause video">▶</button>
     <div id="vp-track"><div id="vp-fill"></div><div id="vp-knob"></div></div>
     <div id="vp-time">0:00 / 0:00</div>
+    <div id="vp-list">
+      <button id="vp-prev" title="Previous video in playlist">⏮</button>
+      <span id="vp-count">– / –</span>
+      <button id="vp-next" title="Next video in playlist">⏭</button>
+    </div>
   `;
   road.appendChild(scrub);
 
@@ -1603,7 +1707,28 @@ if('serviceWorker' in navigator){
   const fill  = scrub.querySelector('#vp-fill');
   const knob  = scrub.querySelector('#vp-knob');
   const tlabel= scrub.querySelector('#vp-time');
+  const listUI= scrub.querySelector('#vp-list');
+  const countEl=scrub.querySelector('#vp-count');
   let dragging = false;
+
+  scrub.querySelector('#vp-prev').addEventListener('click', e => {
+    e.stopPropagation();
+    if (ytPlayer && ytReady) { ytPlayer.previousVideo(); applySound(); }
+  });
+  scrub.querySelector('#vp-next').addEventListener('click', e => {
+    e.stopPropagation();
+    if (ytPlayer && ytReady) { ytPlayer.nextVideo(); applySound(); }
+  });
+  function syncPlaylistUI(){
+    let ids = null;
+    if (usingYT && currentSel && currentSel.kind === 'list' && ytPlayer && ytReady) {
+      try { ids = ytPlayer.getPlaylist(); } catch(e){}
+    }
+    if (!ids || !ids.length) { listUI.classList.remove('show'); return; }
+    listUI.classList.add('show');
+    let idx = -1; try { idx = ytPlayer.getPlaylistIndex(); } catch(e){}
+    countEl.textContent = (idx >= 0 ? idx + 1 : '–') + ' / ' + ids.length;
+  }
 
   // one set of accessors covering both players
   function vDuration(){
@@ -1676,6 +1801,7 @@ if('serviceWorker' in navigator){
 
   setInterval(() => {
     syncPlayBtn();
+    syncPlaylistUI();
     const dur = vDuration();
     if (!dur) { scrub.classList.remove('show'); return; }
     scrub.classList.add('show');
@@ -1689,6 +1815,7 @@ if('serviceWorker' in navigator){
   window.togglePlay = function(){
     const wasPlaying = playing;
     _togglePlay.apply(this, arguments);
+    applySound();                        // user gesture: safe to unmute if they want sound
     if (usingYT && ytPlayer && ytReady) {
       if (wasPlaying) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
     }
@@ -1696,6 +1823,7 @@ if('serviceWorker' in navigator){
 
   const _toggleVideoPause = window.toggleVideoPause;
   window.toggleVideoPause = function(){
+    applySound();
     if (usingYT && ytPlayer && ytReady) {
       const st = ytPlayer.getPlayerState();
       const b = document.getElementById('pause-btn');
@@ -1720,9 +1848,15 @@ if('serviceWorker' in navigator){
   function safeSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
   function safeRemove(k){ try { localStorage.removeItem(k); } catch(e){} }
 
-  // ---- restore a remembered choice ----
-  const saved = safeGet(STORE_KEY);
-  if (saved && saved.type === 'yt' && saved.id) loadYouTube(saved.id);
+  // If the workout's VIDEO_FILE (set by the upload form) is a YouTube link, that's the default video.
+  function defaultYT(){
+    if (typeof VIDEO_FILE !== 'string' || !/youtu\.?be/i.test(VIDEO_FILE)) return null;
+    return parseYT(VIDEO_FILE);
+  }
+
+  // ---- restore a remembered choice, else the workout's own YouTube default ----
+  const savedSel = selFromSaved(safeGet(STORE_KEY)) || defaultYT();
+  if (savedSel) loadYouTube(savedSel);
 })();
 </script>
 </body>
